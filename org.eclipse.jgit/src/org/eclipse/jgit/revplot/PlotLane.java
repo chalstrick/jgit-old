@@ -67,4 +67,9 @@ public class PlotLane {
 	public boolean equals(final Object o) {
 		return o == this;
 	}
+
+	public String toString() {
+		return "PlotLane(" + System.identityHashCode(this) + "): pos="
+				+ position;
+	}
 }

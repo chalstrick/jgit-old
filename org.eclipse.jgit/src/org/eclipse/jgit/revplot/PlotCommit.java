@@ -160,4 +160,24 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 		lane = null;
 		super.reset();
 	}
+
+	/**
+	 * @param prefix
+	 * @return a string describing the state of this object
+	 */
+	public String toDebugString(String prefix) {
+		StringBuilder ret = new StringBuilder(prefix + "PlotCommit "
+				+ getId().getName()
+ + "\n");
+		ret.append(prefix + "  Children: [");
+		for (int i=0; i<children.length; i++)
+			ret.append(((i == 0) ? "" : ", ") + children[i].getName());
+		ret.append("]\n" + prefix + "  Lane: "
+				+ ((lane == null) ? "null" : lane.toString()) + "\n");
+		ret.append(prefix + "  PassingLanes: [");
+		for (int i = 0; i < passingLanes.length; i++)
+			ret.append(((i == 0) ? "" : ", ") + passingLanes[i].toString());
+		ret.append("]");
+		return ret.toString();
+	}
 }

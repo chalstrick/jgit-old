@@ -223,4 +223,25 @@ public class PlotCommitList<L extends PlotLane> extends
 	protected void recycleLane(final L lane) {
 		// Nothing.
 	}
+
+	/**
+	 * @param prefix
+	 * @return a string describing the state of this object
+	 */
+	public String toDebugString(String prefix) {
+		StringBuilder ret = new StringBuilder(prefix + "PlotCommitList("
+				+ System.identityHashCode(this) + "):\n");
+		ret.append(prefix + "  FreeLanes: [" + freePositions.toString() + "]\n");
+		ret.append(prefix + "  ActiveLanes: [" + activeLanes.toString() + "]\n");
+		ret.append(prefix + "  LanesAllocated: " + positionsAllocated + "\n");
+		ret.append(prefix + "  Commits: [\n");
+		for (int i = 0; i < size(); i++) {
+			PlotCommit<L> pc = get(i);
+			ret.append((pc == null) ? prefix + "    (null)\n" : get(i)
+					.toDebugString(prefix + "    ") + "\n");
+		}
+
+		ret.append("  ]");
+		return ret.toString();
+	}
 }
