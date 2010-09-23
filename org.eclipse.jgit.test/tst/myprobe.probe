@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probekit>
+  <probe>
+    <fragmentAtClassScope>public static String spaces = &quot;&quot;;&#xD;
+public static boolean previousEnter = false;</fragmentAtClassScope>
+    <fragment type="entry">
+      <data name="aclassName0" type="className"/>
+      <data name="amethodName1" type="methodName"/>
+      <data name="amethodSig2" type="methodSig"/>
+      <data name="athisObject3" type="thisObject"/>
+      <data name="aargs4" type="args"/>
+      <code>System.out.print(&quot;\n&quot;+spaces+aclassName0+&quot;.&quot;+amethodName1+&quot;(&quot;+java.util.Arrays.asList(aargs4)+&quot;) &quot;);&#xD;
+spaces = spaces + &quot;  &quot;;&#xD;
+previousEnter = true;&#xD;
+&#xD;
+</code>
+    </fragment>
+    <fragment type="exit">
+      <data name="aclassName0" type="className"/>
+      <data name="amethodName1" type="methodName"/>
+      <data name="areturnedObject" type="returnedObject"/>
+      <code>if (!previousEnter) {&#xD;
+	System.out.print(&quot;\n&quot;+spaces+&quot;return &quot;+areturnedObject);&#xD;
+	spaces = spaces.substring(2);&#xD;
+	System.out.print(&quot;\n&quot;+spaces+&quot;}&quot;);&#xD;
+} else {&#xD;
+	System.out.print(&quot;: &quot;+areturnedObject);&#xD;
+	spaces = spaces.substring(2);&#xD;
+}&#xD;
+previousEnter = false;&#xD;
+</code>
+    </fragment>
+  </probe>
+</probekit>

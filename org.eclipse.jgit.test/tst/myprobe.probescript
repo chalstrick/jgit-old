@@ -1,0 +1,4 @@
+REM unnamed_probe
+PROBE
+REF ONENTRY myprobe_probe$Probe_0 _entry (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Object;)V className,methodName,methodSig,thisObject,args
+REF ONEXIT myprobe_probe$Probe_0 _exit (Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V returnedObject,className,methodName
