@@ -49,13 +49,10 @@ package org.eclipse.jgit.diff;
  * This comparator acts as a proxy for the real comparator, translating element
  * indexes on the fly by adding the subsequence's begin offset to them.
  * Comparators of this type must be used with a {@link Subsequence}.
- *
- * @param <S>
- *            the base sequence type.
  */
-public final class SubsequenceComparator<S extends Sequence> extends
-		SequenceComparator<Subsequence<S>> {
-	private final SequenceComparator<? super S> cmp;
+public final class SubsequenceComparator extends
+		SequenceComparator {
+	private final SequenceComparator cmp;
 
 	/**
 	 * Construct a comparator wrapping another comparator.
@@ -63,17 +60,15 @@ public final class SubsequenceComparator<S extends Sequence> extends
 	 * @param cmp
 	 *            the real comparator.
 	 */
-	public SubsequenceComparator(SequenceComparator<? super S> cmp) {
+	public SubsequenceComparator(SequenceComparator cmp) {
 		this.cmp = cmp;
 	}
 
-	@Override
-	public boolean equals(Subsequence<S> a, int ai, Subsequence<S> b, int bi) {
-		return cmp.equals(a.base, ai + a.begin, b.base, bi + b.begin);
+	public boolean equals(Sequence a, int ai, Sequence b, int bi) {
+		return cmp.equals(((Subsequence)a).base, ai + ((Subsequence)a).begin, ((Subsequence)b).base, bi + ((Subsequence)b).begin);
 	}
 
-	@Override
-	public int hash(Subsequence<S> seq, int ptr) {
-		return cmp.hash(seq.base, ptr + seq.begin);
+	public int hash(Sequence seq, int ptr) {
+		return cmp.hash(((Subsequence)seq).base, ptr + ((Subsequence)seq).begin);
 	}
 }

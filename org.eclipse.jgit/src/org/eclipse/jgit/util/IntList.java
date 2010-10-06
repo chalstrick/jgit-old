@@ -139,7 +139,7 @@ public class IntList {
 	}
 
 	public String toString() {
-		final StringBuilder r = new StringBuilder();
+		final StringBuffer r = new StringBuffer();
 		r.append('[');
 		for (int i = 0; i < count; i++) {
 			if (i > 0)

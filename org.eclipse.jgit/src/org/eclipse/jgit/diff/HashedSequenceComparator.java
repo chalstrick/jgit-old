@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, Google Inc.
+ * Copyright (C) 2010, Goosgle Inc.
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -52,26 +52,22 @@ package org.eclipse.jgit.diff;
  *
  * To construct an instance of this type use {@link HashedSequencePair}.
  *
- * @param <S>
- *            the base sequence type.
  */
-public final class HashedSequenceComparator<S extends Sequence> extends
-		SequenceComparator<HashedSequence<S>> {
-	private final SequenceComparator<? super S> cmp;
+public final class HashedSequenceComparator extends
+		SequenceComparator {
+	private final SequenceComparator cmp;
 
-	HashedSequenceComparator(SequenceComparator<? super S> cmp) {
+	HashedSequenceComparator(SequenceComparator cmp) {
 		this.cmp = cmp;
 	}
 
-	@Override
-	public boolean equals(HashedSequence<S> a, int ai, //
-			HashedSequence<S> b, int bi) {
-		return a.hashes[ai] == b.hashes[bi]
-				&& cmp.equals(a.base, ai, b.base, bi);
+	public boolean equals(Sequence a, int ai, //
+			Sequence b, int bi) {
+		return ((HashedSequence)(a)).hashes[ai] == ((HashedSequence)(b)).hashes[bi]
+				&& cmp.equals(((HashedSequence)(a)).base, ai, ((HashedSequence)(b)).base, bi);
 	}
 
-	@Override
-	public int hash(HashedSequence<S> seq, int ptr) {
-		return seq.hashes[ptr];
+	public int hash(Sequence seq, int ptr) {
+		return ((HashedSequence)seq).hashes[ptr];
 	}
 }

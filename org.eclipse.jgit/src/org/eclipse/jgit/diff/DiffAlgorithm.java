@@ -56,8 +56,6 @@ public abstract class DiffAlgorithm {
 	/**
 	 * Compare two sequences and identify a list of edits between them.
 	 *
-	 * @param <S>
-	 *            type of sequence being compared.
 	 * @param cmp
 	 *            the comparator supplying the element equivalence function.
 	 * @param a
@@ -72,23 +70,23 @@ public abstract class DiffAlgorithm {
 	 *         sequences are identical according to {@code cmp}'s rules. The
 	 *         result list is never null.
 	 */
-	public <S extends Sequence> EditList diff(
-			SequenceComparator<? super S> cmp, S a, S b) {
+	public EditList diff(
+			SequenceComparator cmp, Sequence a, Sequence b) {
 		Edit region = cmp.reduceCommonStartEnd(a, b, coverEdit(a, b));
 
 		switch (region.getType()) {
-		case INSERT:
-		case DELETE:
+		case Edit.TYPE_INSERT:
+		case Edit.TYPE_DELETE:
 			return EditList.singleton(region);
 
-		case REPLACE: {
-			SubsequenceComparator<S> cs = new SubsequenceComparator<S>(cmp);
-			Subsequence<S> as = Subsequence.a(a, region);
-			Subsequence<S> bs = Subsequence.b(b, region);
+		case Edit.TYPE_REPLACE: {
+			SubsequenceComparator cs = new SubsequenceComparator(cmp);
+			Subsequence as = Subsequence.a(a, region);
+			Subsequence bs = Subsequence.b(b, region);
 			return Subsequence.toBase(diffNonCommon(cs, as, bs), as, bs);
 		}
 
-		case EMPTY:
+		case Edit.TYPE_EMPTY:
 			return new EditList(0);
 
 		default:
@@ -96,7 +94,7 @@ public abstract class DiffAlgorithm {
 		}
 	}
 
-	private static <S extends Sequence> Edit coverEdit(S a, S b) {
+	private static Edit coverEdit(Sequence a, Sequence b) {
 		return new Edit(0, a.size(), 0, b.size());
 	}
 
@@ -109,8 +107,6 @@ public abstract class DiffAlgorithm {
 	 * performed by the {@link #diff(SequenceComparator, Sequence, Sequence)}
 	 * method, which invokes this method using {@link Subsequence}s.
 	 *
-	 * @param <S>
-	 *            type of sequence being compared.
 	 * @param cmp
 	 *            the comparator supplying the element equivalence function.
 	 * @param a
@@ -123,6 +119,6 @@ public abstract class DiffAlgorithm {
 	 *            'B' side: {@link Edit#getBeginB()}, {@link Edit#getEndB()}.
 	 * @return a modifiable edit list comparing the two sequences.
 	 */
-	public abstract <S extends Sequence> EditList diffNonCommon(
-			SequenceComparator<? super S> cmp, S a, S b);
+	public abstract EditList diffNonCommon(
+			SequenceComparator cmp, Sequence a, Sequence b);
 }

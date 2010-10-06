@@ -52,10 +52,8 @@ package org.eclipse.jgit.diff;
  *
  * Indexes within a sequence are zero-based.
  *
- * @param <S>
- *            type of sequence the comparator supports.
  */
-public abstract class SequenceComparator<S extends Sequence> {
+public abstract class SequenceComparator {
 	/**
 	 * Compare two items to determine if they are equivalent.
 	 *
@@ -73,7 +71,7 @@ public abstract class SequenceComparator<S extends Sequence> {
 	 * @return true if the two items are identical according to this function's
 	 *         equivalence rule.
 	 */
-	public abstract boolean equals(S a, int ai, S b, int bi);
+	public abstract boolean equals(Sequence a, int ai, Sequence b, int bi);
 
 	/**
 	 * Get a hash value for an item in a sequence.
@@ -91,7 +89,7 @@ public abstract class SequenceComparator<S extends Sequence> {
 	 *            the item to obtain the hash for.
 	 * @return hash the hash value.
 	 */
-	public abstract int hash(S seq, int ptr);
+	public abstract int hash(Sequence seq, int ptr);
 
 	/**
 	 * Modify the edit to remove common leading and trailing items.
@@ -110,7 +108,7 @@ public abstract class SequenceComparator<S extends Sequence> {
 	 * @return {@code e} if it was updated in-place, otherwise a new edit
 	 *         containing the reduced region.
 	 */
-	public Edit reduceCommonStartEnd(S a, S b, Edit e) {
+	public Edit reduceCommonStartEnd(Sequence a, Sequence b, Edit e) {
 		// Skip over items that are common at the start.
 		//
 		while (e.beginA < e.endA && e.beginB < e.endB

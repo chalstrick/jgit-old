@@ -44,9 +44,6 @@
 
 package org.eclipse.jgit.diff;
 
-import java.text.MessageFormat;
-
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.util.IntList;
 import org.eclipse.jgit.util.LongList;
 
@@ -102,15 +99,13 @@ import org.eclipse.jgit.util.LongList;
  * So the overall runtime complexity stays the same with linear space,
  * albeit with a larger constant factor.
  *
- * @param <S>
- *            type of sequence.
  */
-public class MyersDiff<S extends Sequence> {
+public class MyersDiff {
 	/** Singleton instance of MyersDiff. */
 	public static final DiffAlgorithm INSTANCE = new DiffAlgorithm() {
-		public <S extends Sequence> EditList diffNonCommon(
-				SequenceComparator<? super S> cmp, S a, S b) {
-			return new MyersDiff<S>(cmp, a, b).edits;
+		public EditList diffNonCommon(
+				SequenceComparator cmp, Sequence a, Sequence b) {
+			return new MyersDiff(cmp, a, b).edits;
 		}
 	};
 
@@ -120,22 +115,22 @@ public class MyersDiff<S extends Sequence> {
 	protected EditList edits;
 
 	/** Comparison function for sequences. */
-	protected HashedSequenceComparator<S> cmp;
+	protected HashedSequenceComparator cmp;
 
 	/**
 	 * The first text to be compared. Referred to as "Text A" in the comments
 	 */
-	protected HashedSequence<S> a;
+	protected HashedSequence a;
 
 	/**
 	 * The second text to be compared. Referred to as "Text B" in the comments
 	 */
-	protected HashedSequence<S> b;
+	protected HashedSequence b;
 
-	private MyersDiff(SequenceComparator<? super S> cmp, S a, S b) {
-		HashedSequencePair<S> pair;
+	private MyersDiff(SequenceComparator cmp, Sequence a, Sequence b) {
+		HashedSequencePair pair;
 
-		pair = new HashedSequencePair<S>(cmp, a, b);
+		pair = new HashedSequencePair(cmp, a, b);
 		this.cmp = pair.getComparator();
 		this.a = pair.getA();
 		this.b = pair.getB();
@@ -179,7 +174,7 @@ public class MyersDiff<S extends Sequence> {
 			calculateEdits(beginA, x, beginB, k + x);
 		}
 
-		if (edit.getType() != Edit.Type.EMPTY)
+		if (edit.getType() != Edit.TYPE_EMPTY)
 			edits.add(edits.size(), edit);
 
 		// after middle
@@ -301,21 +296,22 @@ public class MyersDiff<S extends Sequence> {
 			final int getIndex(int d, int k) {
 // TODO: remove
 if (((d + k - middleK) % 2) == 1)
-	throw new RuntimeException(MessageFormat.format(JGitText.get().unexpectedOddResult, d, k, middleK));
+	throw new RuntimeException("unexpectedOddResult");
 				return (d + k - middleK) / 2;
 			}
 
 			final int getX(int d, int k) {
 // TODO: remove
 if (k < beginK || k > endK)
-	throw new RuntimeException(MessageFormat.format(JGitText.get().kNotInRange, k, beginK, endK));
-				return x.get(getIndex(d, k));
+	throw new RuntimeException("kNotInRange");
+return x.get(getIndex(d, k));
+
 			}
 
 			final long getSnake(int d, int k) {
 // TODO: remove
 if (k < beginK || k > endK)
-	throw new RuntimeException(MessageFormat.format(JGitText.get().kNotInRange, k, beginK, endK));
+	throw new RuntimeException("kNotInRange");
 				return snake.get(getIndex(d, k));
 			}
 
@@ -529,7 +525,7 @@ if (k < beginK || k > endK)
 	 */
 	public static void main(String[] args) {
 		if (args.length != 2) {
-			System.err.println(JGitText.get().need2Arguments);
+			System.err.println("need2Arguments");
 			System.exit(1);
 		}
 		try {

@@ -48,7 +48,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 /** Specialized list of {@link Edit}s in a document. */
-public class EditList extends AbstractList<Edit> {
+public class EditList {
 	/**
 	 * Construct an edit list containing a single edit.
 	 *
@@ -58,15 +58,15 @@ public class EditList extends AbstractList<Edit> {
 	 */
 	public static EditList singleton(Edit edit) {
 		EditList res = new EditList(1);
-		res.add(edit);
+		res.add(0, edit);
 		return res;
 	}
 
-	private final ArrayList<Edit> container;
+	private final ArrayList container;
 
 	/** Create a new, empty edit list. */
 	public EditList() {
-		container = new ArrayList<Edit>();
+		container = new ArrayList();
 	}
 
 	/**
@@ -77,52 +77,43 @@ public class EditList extends AbstractList<Edit> {
 	 *            added to the list, it will be grown to support them.
 	 */
 	public EditList(int capacity) {
-		container = new ArrayList<Edit>(capacity);
+		container = new ArrayList(capacity);
 	}
 
-	@Override
 	public int size() {
 		return container.size();
 	}
 
-	@Override
 	public Edit get(final int index) {
-		return container.get(index);
+		return (Edit) container.get(index);
 	}
 
-	@Override
 	public Edit set(final int index, final Edit element) {
-		return container.set(index, element);
+		return (Edit) container.set(index, element);
 	}
 
-	@Override
 	public void add(final int index, final Edit element) {
 		container.add(index, element);
 	}
 
-	@Override
-	public boolean addAll(Collection<? extends Edit> c) {
+	public boolean addAll(Collection c) {
 		return container.addAll(c);
 	}
 
-	@Override
 	public Edit remove(final int index) {
-		return container.remove(index);
+		return (Edit) container.remove(index);
 	}
 
-	@Override
 	public int hashCode() {
 		return container.hashCode();
 	}
 
-	@Override
 	public boolean equals(final Object o) {
 		if (o instanceof EditList)
 			return container.equals(((EditList) o).container);
 		return false;
 	}
 
-	@Override
 	public String toString() {
 		return "EditList" + container.toString();
 	}

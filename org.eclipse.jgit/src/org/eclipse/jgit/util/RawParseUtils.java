@@ -44,11 +44,6 @@
 
 package org.eclipse.jgit.util;
 
-import static org.eclipse.jgit.lib.ObjectChecker.author;
-import static org.eclipse.jgit.lib.ObjectChecker.committer;
-import static org.eclipse.jgit.lib.ObjectChecker.encoding;
-import static org.eclipse.jgit.lib.ObjectChecker.tagger;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
@@ -56,11 +51,13 @@ import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.util.Arrays;
 
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.PersonIdent;
-
 /** Handy utility functions to parse raw object contents. */
 public final class RawParseUtils {
+	/**
+	 * 
+	 */
+	private static final Charset cs = Charset.forName("UTF-8");
+
 	private static final byte[] digits10;
 
 	private static final byte[] digits16;
@@ -535,242 +532,6 @@ public final class RawParseUtils {
 	}
 
 	/**
-	 * Locate the "author " header line data.
-	 *
-	 * @param b
-	 *            buffer to scan.
-	 * @param ptr
-	 *            position in buffer to start the scan at. Most callers should
-	 *            pass 0 to ensure the scan starts from the beginning of the
-	 *            commit buffer and does not accidentally look at message body.
-	 * @return position just after the space in "author ", so the first
-	 *         character of the author's name. If no author header can be
-	 *         located -1 is returned.
-	 */
-	public static final int author(final byte[] b, int ptr) {
-		final int sz = b.length;
-		if (ptr == 0)
-			ptr += 46; // skip the "tree ..." line.
-		while (ptr < sz && b[ptr] == 'p')
-			ptr += 48; // skip this parent.
-		return match(b, ptr, author);
-	}
-
-	/**
-	 * Locate the "committer " header line data.
-	 *
-	 * @param b
-	 *            buffer to scan.
-	 * @param ptr
-	 *            position in buffer to start the scan at. Most callers should
-	 *            pass 0 to ensure the scan starts from the beginning of the
-	 *            commit buffer and does not accidentally look at message body.
-	 * @return position just after the space in "committer ", so the first
-	 *         character of the committer's name. If no committer header can be
-	 *         located -1 is returned.
-	 */
-	public static final int committer(final byte[] b, int ptr) {
-		final int sz = b.length;
-		if (ptr == 0)
-			ptr += 46; // skip the "tree ..." line.
-		while (ptr < sz && b[ptr] == 'p')
-			ptr += 48; // skip this parent.
-		if (ptr < sz && b[ptr] == 'a')
-			ptr = nextLF(b, ptr);
-		return match(b, ptr, committer);
-	}
-
-	/**
-	 * Locate the "tagger " header line data.
-	 *
-	 * @param b
-	 *            buffer to scan.
-	 * @param ptr
-	 *            position in buffer to start the scan at. Most callers should
-	 *            pass 0 to ensure the scan starts from the beginning of the tag
-	 *            buffer and does not accidentally look at message body.
-	 * @return position just after the space in "tagger ", so the first
-	 *         character of the tagger's name. If no tagger header can be
-	 *         located -1 is returned.
-	 */
-	public static final int tagger(final byte[] b, int ptr) {
-		final int sz = b.length;
-		if (ptr == 0)
-			ptr += 48; // skip the "object ..." line.
-		while (ptr < sz) {
-			if (b[ptr] == '\n')
-				return -1;
-			final int m = match(b, ptr, tagger);
-			if (m >= 0)
-				return m;
-			ptr = nextLF(b, ptr);
-		}
-		return -1;
-	}
-
-	/**
-	 * Locate the "encoding " header line.
-	 *
-	 * @param b
-	 *            buffer to scan.
-	 * @param ptr
-	 *            position in buffer to start the scan at. Most callers should
-	 *            pass 0 to ensure the scan starts from the beginning of the
-	 *            buffer and does not accidentally look at the message body.
-	 * @return position just after the space in "encoding ", so the first
-	 *         character of the encoding's name. If no encoding header can be
-	 *         located -1 is returned (and UTF-8 should be assumed).
-	 */
-	public static final int encoding(final byte[] b, int ptr) {
-		final int sz = b.length;
-		while (ptr < sz) {
-			if (b[ptr] == '\n')
-				return -1;
-			if (b[ptr] == 'e')
-				break;
-			ptr = nextLF(b, ptr);
-		}
-		return match(b, ptr, encoding);
-	}
-
-	/**
-	 * Parse the "encoding " header into a character set reference.
-	 * <p>
-	 * Locates the "encoding " header (if present) by first calling
-	 * {@link #encoding(byte[], int)} and then returns the proper character set
-	 * to apply to this buffer to evaluate its contents as character data.
-	 * <p>
-	 * If no encoding header is present, {@link Constants#CHARSET} is assumed.
-	 *
-	 * @param b
-	 *            buffer to scan.
-	 * @return the Java character set representation. Never null.
-	 */
-	public static Charset parseEncoding(final byte[] b) {
-		final int enc = encoding(b, 0);
-		if (enc < 0)
-			return Constants.CHARSET;
-		final int lf = nextLF(b, enc);
-		return Charset.forName(decode(Constants.CHARSET, b, enc, lf - 1));
-	}
-
-	/**
-	 * Parse a name string (e.g. author, committer, tagger) into a PersonIdent.
-	 * <p>
-	 * Leading spaces won't be trimmed from the string, i.e. will show up in the
-	 * parsed name afterwards.
-	 *
-	 * @param in
-	 *            the string to parse a name from.
-	 * @return the parsed identity or null in case the identity could not be
-	 *         parsed.
-	 */
-	public static PersonIdent parsePersonIdent(final String in) {
-		return parsePersonIdent(Constants.encode(in), 0);
-	}
-
-	/**
-	 * Parse a name line (e.g. author, committer, tagger) into a PersonIdent.
-	 * <p>
-	 * When passing in a value for <code>nameB</code> callers should use the
-	 * return value of {@link #author(byte[], int)} or
-	 * {@link #committer(byte[], int)}, as these methods provide the proper
-	 * position within the buffer.
-	 *
-	 * @param raw
-	 *            the buffer to parse character data from.
-	 * @param nameB
-	 *            first position of the identity information. This should be the
-	 *            first position after the space which delimits the header field
-	 *            name (e.g. "author" or "committer") from the rest of the
-	 *            identity line.
-	 * @return the parsed identity or null in case the identity could not be
-	 *         parsed.
-	 */
-	public static PersonIdent parsePersonIdent(final byte[] raw, final int nameB) {
-		final Charset cs = parseEncoding(raw);
-		final int emailB = nextLF(raw, nameB, '<');
-		final int emailE = nextLF(raw, emailB, '>');
-		if (emailB >= raw.length || raw[emailB] == '\n' ||
-				(emailE >= raw.length - 1 && raw[emailE - 1] != '>'))
-			return null;
-
-		final int nameEnd = emailB - 2 >= 0 && raw[emailB - 2] == ' ' ? emailB - 2
-				: emailB - 1;
-		final String name = decode(cs, raw, nameB, nameEnd);
-		final String email = decode(cs, raw, emailB, emailE - 1);
-
-		// Start searching from end of line, as after first name-email pair,
-		// another name-email pair may occur. We will ignore all kinds of
-		// "junk" following the first email.
-		//
-		// We've to use (emailE - 1) for the case that raw[email] is LF,
-		// otherwise we would run too far. "-2" is necessary to position
-		// before the LF in case of LF termination resp. the penultimate
-		// character if there is no trailing LF.
-		final int tzBegin = lastIndexOfTrim(raw, ' ',
-				nextLF(raw, emailE - 1) - 2) + 1;
-		if (tzBegin <= emailE) // No time/zone, still valid
-			return new PersonIdent(name, email, 0, 0);
-
-		final int whenBegin = Math.max(emailE,
-				lastIndexOfTrim(raw, ' ', tzBegin - 1) + 1);
-		if (whenBegin >= tzBegin - 1) // No time/zone, still valid
-			return new PersonIdent(name, email, 0, 0);
-
-		final long when = parseLongBase10(raw, whenBegin, null);
-		final int tz = parseTimeZoneOffset(raw, tzBegin);
-		return new PersonIdent(name, email, when * 1000L, tz);
-	}
-
-	/**
-	 * Parse a name data (e.g. as within a reflog) into a PersonIdent.
-	 * <p>
-	 * When passing in a value for <code>nameB</code> callers should use the
-	 * return value of {@link #author(byte[], int)} or
-	 * {@link #committer(byte[], int)}, as these methods provide the proper
-	 * position within the buffer.
-	 *
-	 * @param raw
-	 *            the buffer to parse character data from.
-	 * @param nameB
-	 *            first position of the identity information. This should be the
-	 *            first position after the space which delimits the header field
-	 *            name (e.g. "author" or "committer") from the rest of the
-	 *            identity line.
-	 * @return the parsed identity. Never null.
-	 */
-	public static PersonIdent parsePersonIdentOnly(final byte[] raw,
-			final int nameB) {
-		int stop = nextLF(raw, nameB);
-		int emailB = nextLF(raw, nameB, '<');
-		int emailE = nextLF(raw, emailB, '>');
-		final String name;
-		final String email;
-		if (emailE < stop) {
-			email = decode(raw, emailB, emailE - 1);
-		} else {
-			email = "invalid";
-		}
-		if (emailB < stop)
-			name = decode(raw, nameB, emailB - 2);
-		else
-			name = decode(raw, nameB, stop);
-
-		final MutableInteger ptrout = new MutableInteger();
-		long when;
-		int tz;
-		if (emailE < stop) {
-			when = parseLongBase10(raw, emailE + 1, ptrout);
-			tz = parseTimeZoneOffset(raw, ptrout.value);
-		} else {
-			when = 0;
-			tz = 0;
-		}
-		return new PersonIdent(name, email, when * 1000L, tz);
-	}
-
-	/**
 	 * Locate the end of a footer line key string.
 	 * <p>
 	 * If the region at {@code raw[ptr]} matches {@code ^[A-Za-z0-9-]+:} (e.g.
@@ -836,7 +597,7 @@ public final class RawParseUtils {
 	 */
 	public static String decode(final byte[] buffer, final int start,
 			final int end) {
-		return decode(Constants.CHARSET, buffer, start, end);
+		return decode(cs, buffer, start, end);
 	}
 
 	/**
@@ -918,12 +679,12 @@ public final class RawParseUtils {
 		// using that encoder.
 		//
 		try {
-			return decode(b, Constants.CHARSET);
+			return decode(b, cs);
 		} catch (CharacterCodingException e) {
 			b.reset();
 		}
 
-		if (!cs.equals(Constants.CHARSET)) {
+		if (!cs.equals(cs)) {
 			// Try the suggested encoding, it might be right since it was
 			// provided by the caller.
 			//
@@ -937,8 +698,8 @@ public final class RawParseUtils {
 		// Try the default character set. A small group of people
 		// might actually use the same (or very similar) locale.
 		//
-		final Charset defcs = Charset.defaultCharset();
-		if (!defcs.equals(cs) && !defcs.equals(Constants.CHARSET)) {
+		final Charset defcs = cs;
+		if (!defcs.equals(cs) && !defcs.equals(cs)) {
 			try {
 				return decode(b, defcs);
 			} catch (CharacterCodingException e) {
@@ -966,7 +727,7 @@ public final class RawParseUtils {
 	 */
 	public static String extractBinaryString(final byte[] buffer,
 			final int start, final int end) {
-		final StringBuilder r = new StringBuilder(end - start);
+		final StringBuffer r = new StringBuffer(end - start);
 		for (int i = start; i < end; i++)
 			r.append((char) (buffer[i] & 0xff));
 		return r.toString();

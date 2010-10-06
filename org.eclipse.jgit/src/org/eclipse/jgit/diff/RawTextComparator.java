@@ -44,37 +44,37 @@
 
 package org.eclipse.jgit.diff;
 
-import static org.eclipse.jgit.util.RawCharUtil.isWhitespace;
-import static org.eclipse.jgit.util.RawCharUtil.trimLeadingWhitespace;
-import static org.eclipse.jgit.util.RawCharUtil.trimTrailingWhitespace;
 
 import org.eclipse.jgit.util.IntList;
+import org.eclipse.jgit.util.RawCharUtil;
 
 /** Equivalence function for {@link RawText}. */
-public abstract class RawTextComparator extends SequenceComparator<RawText> {
+public abstract class RawTextComparator extends SequenceComparator {
 	/** No special treatment. */
 	public static final RawTextComparator DEFAULT = new RawTextComparator() {
-		@Override
-		public boolean equals(RawText a, int ai, RawText b, int bi) {
+		public boolean equals(Sequence a, int ai, Sequence b, int bi) {
 			ai++;
 			bi++;
 
-			int as = a.lines.get(ai);
-			int bs = b.lines.get(bi);
-			final int ae = a.lines.get(ai + 1);
-			final int be = b.lines.get(bi + 1);
+			RawText ar = (RawText) a;
+			RawText br = (RawText) b;
+
+			int as = ar.lines.get(ai);
+			int bs = br.lines.get(bi);
+			final int ae = ar.lines.get(ai + 1);
+			final int be = br.lines.get(bi + 1);
 
 			if (ae - as != be - bs)
 				return false;
 
 			while (as < ae) {
-				if (a.content[as++] != b.content[bs++])
+				if (ar.content[as++] != br.content[bs++])
 					return false;
 			}
 			return true;
 		}
 
-		@Override
+
 		protected int hashRegion(final byte[] raw, int ptr, final int end) {
 			int hash = 5381;
 			for (; ptr < end; ptr++)
@@ -85,31 +85,34 @@ public abstract class RawTextComparator extends SequenceComparator<RawText> {
 
 	/** Ignores all whitespace. */
 	public static final RawTextComparator WS_IGNORE_ALL = new RawTextComparator() {
-		@Override
-		public boolean equals(RawText a, int ai, RawText b, int bi) {
+
+		public boolean equals(Sequence a, int ai, Sequence b, int bi) {
 			ai++;
 			bi++;
 
-			int as = a.lines.get(ai);
-			int bs = b.lines.get(bi);
-			int ae = a.lines.get(ai + 1);
-			int be = b.lines.get(bi + 1);
+			RawText ar = (RawText) a;
+			RawText br = (RawText) b;
 
-			ae = trimTrailingWhitespace(a.content, as, ae);
-			be = trimTrailingWhitespace(b.content, bs, be);
+			int as = ar.lines.get(ai);
+			int bs = br.lines.get(bi);
+			int ae = ar.lines.get(ai + 1);
+			int be = br.lines.get(bi + 1);
+
+			ae = RawCharUtil.trimTrailingWhitespace(ar.content, as, ae);
+			be = RawCharUtil.trimTrailingWhitespace(br.content, bs, be);
 
 			while (as < ae && bs < be) {
-				byte ac = a.content[as];
-				byte bc = b.content[bs];
+				byte ac = ar.content[as];
+				byte bc = br.content[bs];
 
-				while (as < ae - 1 && isWhitespace(ac)) {
+				while (as < ae - 1 && RawCharUtil.isWhitespace(ac)) {
 					as++;
-					ac = a.content[as];
+					ac = ar.content[as];
 				}
 
-				while (bs < be - 1 && isWhitespace(bc)) {
+				while (bs < be - 1 && RawCharUtil.isWhitespace(bc)) {
 					bs++;
-					bc = b.content[bs];
+					bc = br.content[bs];
 				}
 
 				if (ac != bc)
@@ -122,12 +125,12 @@ public abstract class RawTextComparator extends SequenceComparator<RawText> {
 			return as == ae && bs == be;
 		}
 
-		@Override
+
 		protected int hashRegion(byte[] raw, int ptr, int end) {
 			int hash = 5381;
 			for (; ptr < end; ptr++) {
 				byte c = raw[ptr];
-				if (!isWhitespace(c))
+				if (!RawCharUtil.isWhitespace(c))
 					hash = ((hash << 5) + hash) + (c & 0xff);
 			}
 			return hash;
@@ -136,33 +139,36 @@ public abstract class RawTextComparator extends SequenceComparator<RawText> {
 
 	/** Ignores leading whitespace. */
 	public static final RawTextComparator WS_IGNORE_LEADING = new RawTextComparator() {
-		@Override
-		public boolean equals(RawText a, int ai, RawText b, int bi) {
+
+		public boolean equals(Sequence a, int ai, Sequence b, int bi) {
 			ai++;
 			bi++;
 
-			int as = a.lines.get(ai);
-			int bs = b.lines.get(bi);
-			int ae = a.lines.get(ai + 1);
-			int be = b.lines.get(bi + 1);
+			RawText ar = (RawText) a;
+			RawText br = (RawText) b;
 
-			as = trimLeadingWhitespace(a.content, as, ae);
-			bs = trimLeadingWhitespace(b.content, bs, be);
+			int as = ar.lines.get(ai);
+			int bs = br.lines.get(bi);
+			int ae = ar.lines.get(ai + 1);
+			int be = br.lines.get(bi + 1);
+
+			as = RawCharUtil.trimLeadingWhitespace(ar.content, as, ae);
+			bs = RawCharUtil.trimLeadingWhitespace(br.content, bs, be);
 
 			if (ae - as != be - bs)
 				return false;
 
 			while (as < ae) {
-				if (a.content[as++] != b.content[bs++])
+				if (ar.content[as++] != br.content[bs++])
 					return false;
 			}
 			return true;
 		}
 
-		@Override
+
 		protected int hashRegion(final byte[] raw, int ptr, int end) {
 			int hash = 5381;
-			ptr = trimLeadingWhitespace(raw, ptr, end);
+			ptr = RawCharUtil.trimLeadingWhitespace(raw, ptr, end);
 			for (; ptr < end; ptr++)
 				hash = ((hash << 5) + hash) + (raw[ptr] & 0xff);
 			return hash;
@@ -171,33 +177,36 @@ public abstract class RawTextComparator extends SequenceComparator<RawText> {
 
 	/** Ignores trailing whitespace. */
 	public static final RawTextComparator WS_IGNORE_TRAILING = new RawTextComparator() {
-		@Override
-		public boolean equals(RawText a, int ai, RawText b, int bi) {
+
+		public boolean equals(Sequence a, int ai, Sequence b, int bi) {
 			ai++;
 			bi++;
 
-			int as = a.lines.get(ai);
-			int bs = b.lines.get(bi);
-			int ae = a.lines.get(ai + 1);
-			int be = b.lines.get(bi + 1);
+			RawText ar = (RawText) a;
+			RawText br = (RawText) b;
 
-			ae = trimTrailingWhitespace(a.content, as, ae);
-			be = trimTrailingWhitespace(b.content, bs, be);
+			int as = ar.lines.get(ai);
+			int bs = br.lines.get(bi);
+			int ae = ar.lines.get(ai + 1);
+			int be = br.lines.get(bi + 1);
+
+			ae = RawCharUtil.trimTrailingWhitespace(ar.content, as, ae);
+			be = RawCharUtil.trimTrailingWhitespace(br.content, bs, be);
 
 			if (ae - as != be - bs)
 				return false;
 
 			while (as < ae) {
-				if (a.content[as++] != b.content[bs++])
+				if (ar.content[as++] != br.content[bs++])
 					return false;
 			}
 			return true;
 		}
 
-		@Override
+
 		protected int hashRegion(final byte[] raw, int ptr, int end) {
 			int hash = 5381;
-			end = trimTrailingWhitespace(raw, ptr, end);
+			end = RawCharUtil.trimTrailingWhitespace(raw, ptr, end);
 			for (; ptr < end; ptr++)
 				hash = ((hash << 5) + hash) + (raw[ptr] & 0xff);
 			return hash;
@@ -206,48 +215,51 @@ public abstract class RawTextComparator extends SequenceComparator<RawText> {
 
 	/** Ignores whitespace occurring between non-whitespace characters. */
 	public static final RawTextComparator WS_IGNORE_CHANGE = new RawTextComparator() {
-		@Override
-		public boolean equals(RawText a, int ai, RawText b, int bi) {
+
+		public boolean equals(Sequence a, int ai, Sequence b, int bi) {
 			ai++;
 			bi++;
 
-			int as = a.lines.get(ai);
-			int bs = b.lines.get(bi);
-			int ae = a.lines.get(ai + 1);
-			int be = b.lines.get(bi + 1);
+			RawText ar = (RawText) a;
+			RawText br = (RawText) b;
 
-			ae = trimTrailingWhitespace(a.content, as, ae);
-			be = trimTrailingWhitespace(b.content, bs, be);
+			int as = ar.lines.get(ai);
+			int bs = br.lines.get(bi);
+			int ae = ar.lines.get(ai + 1);
+			int be = br.lines.get(bi + 1);
+
+			ae = RawCharUtil.trimTrailingWhitespace(ar.content, as, ae);
+			be = RawCharUtil.trimTrailingWhitespace(br.content, bs, be);
 
 			while (as < ae && bs < be) {
-				byte ac = a.content[as];
-				byte bc = b.content[bs];
+				byte ac = ar.content[as];
+				byte bc = br.content[bs];
 
 				if (ac != bc)
 					return false;
 
-				if (isWhitespace(ac))
-					as = trimLeadingWhitespace(a.content, as, ae);
+				if (RawCharUtil.isWhitespace(ac))
+					as = RawCharUtil.trimLeadingWhitespace(ar.content, as, ae);
 				else
 					as++;
 
-				if (isWhitespace(bc))
-					bs = trimLeadingWhitespace(b.content, bs, be);
+				if (RawCharUtil.isWhitespace(bc))
+					bs = RawCharUtil.trimLeadingWhitespace(br.content, bs, be);
 				else
 					bs++;
 			}
 			return as == ae && bs == be;
 		}
 
-		@Override
+
 		protected int hashRegion(final byte[] raw, int ptr, int end) {
 			int hash = 5381;
-			end = trimTrailingWhitespace(raw, ptr, end);
+			end = RawCharUtil.trimTrailingWhitespace(raw, ptr, end);
 			while (ptr < end) {
 				byte c = raw[ptr];
 				hash = ((hash << 5) + hash) + (c & 0xff);
-				if (isWhitespace(c))
-					ptr = trimLeadingWhitespace(raw, ptr, end);
+				if (RawCharUtil.isWhitespace(c))
+					ptr = RawCharUtil.trimLeadingWhitespace(raw, ptr, end);
 				else
 					ptr++;
 			}
@@ -255,14 +267,14 @@ public abstract class RawTextComparator extends SequenceComparator<RawText> {
 		}
 	};
 
-	@Override
-	public int hash(RawText seq, int lno) {
-		final int begin = seq.lines.get(lno + 1);
-		final int end = seq.lines.get(lno + 2);
-		return hashRegion(seq.content, begin, end);
+
+	public int hash(Sequence seq, int lno) {
+		final int begin = ((RawText)seq).lines.get(lno + 1);
+		final int end = ((RawText)seq).lines.get(lno + 2);
+		return hashRegion(((RawText)seq).content, begin, end);
 	}
 
-	@Override
+
 	public Edit reduceCommonStartEnd(RawText a, RawText b, Edit e) {
 		// This is a faster exact match based form that tries to improve
 		// performance for the common case of the header and trailer of

@@ -65,19 +65,18 @@ package org.eclipse.jgit.diff;
  */
 public class Edit {
 	/** Type of edit */
-	public static enum Type {
-		/** Sequence B has inserted the region. */
-		INSERT,
+	
+	/** Sequence B has inserted the region. */
+	public final static int TYPE_INSERT=0;
 
-		/** Sequence B has removed the region. */
-		DELETE,
+	/** Sequence B has removed the region. */
+	public final static int TYPE_DELETE=1;
 
-		/** Sequence B has replaced the region with different content. */
-		REPLACE,
+	/** Sequence B has replaced the region with different content. */
+	public final static int TYPE_REPLACE=2;
 
-		/** Sequence A and B have zero length, describing nothing. */
-		EMPTY;
-	}
+	/** Sequence A and B have zero length, describing nothing. */
+	public final static int TYPE_EMPTY=3;
 
 	int beginA;
 
@@ -120,18 +119,18 @@ public class Edit {
 	}
 
 	/** @return the type of this region */
-	public final Type getType() {
+	public final int getType() {
 		if (beginA < endA) {
 			if (beginB < endB)
-				return Type.REPLACE;
+				return TYPE_REPLACE;
 			else /* if (beginB == endB) */
-				return Type.DELETE;
+				return TYPE_DELETE;
 
 		} else /* if (beginA == endA) */{
 			if (beginB < endB)
-				return Type.INSERT;
+				return TYPE_INSERT;
 			else /* if (beginB == endB) */
-				return Type.EMPTY;
+				return TYPE_EMPTY;
 		}
 	}
 
@@ -218,12 +217,10 @@ public class Edit {
 		endB = sEnd;
 	}
 
-	@Override
 	public int hashCode() {
 		return beginA ^ endA;
 	}
 
-	@Override
 	public boolean equals(final Object o) {
 		if (o instanceof Edit) {
 			final Edit e = (Edit) o;
@@ -233,9 +230,8 @@ public class Edit {
 		return false;
 	}
 
-	@Override
 	public String toString() {
-		final Type t = getType();
+		final int t = getType();
 		return t + "(" + beginA + "-" + endA + "," + beginB + "-" + endB + ")";
 	}
 }

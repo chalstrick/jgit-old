@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, Google Inc.
+s * Copyright (C) 2010, Google Inc.
  * Copyright (C) 2008-2009, Johannes E. Schindelin <johannes.schindelin@gmx.de>
  * and other copyright owners as documented in the project's IP log.
  *

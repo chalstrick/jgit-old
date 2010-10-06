@@ -49,46 +49,37 @@ package org.eclipse.jgit.diff;
  * This sequence acts as a proxy for the real sequence, translating element
  * indexes on the fly by adding {@code begin} to them. Sequences of this type
  * must be used with a {@link SubsequenceComparator}.
- *
- * @param <S>
- *            the base sequence type.
  */
-public final class Subsequence<S extends Sequence> extends Sequence {
+public final class Subsequence extends Sequence {
 	/**
 	 * Construct a subsequence around the A region/base sequence.
 	 * 
-	 * @param <S>
-	 *            the base sequence type.
 	 * @param a
 	 *            the A sequence.
 	 * @param region
 	 *            the region of {@code a} to create a subsequence around.
 	 * @return subsequence of {@code base} as described by A in {@code region}.
 	 */
-	public static <S extends Sequence> Subsequence<S> a(S a, Edit region) {
-		return new Subsequence<S>(a, region.beginA, region.endA);
+	public static Subsequence a(Sequence a, Edit region) {
+		return new Subsequence(a, region.beginA, region.endA);
 	}
 
 	/**
 	 * Construct a subsequence around the B region/base sequence.
 	 * 
-	 * @param <S>
-	 *            the base sequence type.
 	 * @param b
 	 *            the B sequence.
 	 * @param region
 	 *            the region of {@code b} to create a subsequence around.
 	 * @return subsequence of {@code base} as described by B in {@code region}.
 	 */
-	public static <S extends Sequence> Subsequence<S> b(S b, Edit region) {
-		return new Subsequence<S>(b, region.beginB, region.endB);
+	public static Subsequence b(Sequence b, Edit region) {
+		return new Subsequence(b, region.beginB, region.endB);
 	}
 
 	/**
 	 * Adjust the Edit to reflect positions in the base sequence.
 	 * 
-	 * @param <S>
-	 *            the base sequence type.
 	 * @param e
 	 *            edit to adjust in-place. Prior to invocation the indexes are
 	 *            in terms of the two subsequences; after invocation the indexes
@@ -98,8 +89,8 @@ public final class Subsequence<S extends Sequence> extends Sequence {
 	 * @param b
 	 *            the B sequence.
 	 */
-	public static <S extends Sequence> void toBase(Edit e, Subsequence<S> a,
-			Subsequence<S> b) {
+	public static void toBase(Edit e, Subsequence a,
+			Subsequence b) {
 		e.beginA += a.begin;
 		e.endA += a.begin;
 
@@ -110,8 +101,6 @@ public final class Subsequence<S extends Sequence> extends Sequence {
 	/**
 	 * Adjust the Edits to reflect positions in the base sequence.
 	 *
-	 * @param <S>
-	 *            the base sequence type.
 	 * @param edits
 	 *            edits to adjust in-place. Prior to invocation the indexes are
 	 *            in terms of the two subsequences; after invocation the indexes
@@ -122,14 +111,14 @@ public final class Subsequence<S extends Sequence> extends Sequence {
 	 *            the B sequence.
 	 * @return always {@code edits} (as the list was updated in-place).
 	 */
-	public static <S extends Sequence> EditList toBase(EditList edits,
-			Subsequence<S> a, Subsequence<S> b) {
-		for (Edit e : edits)
-			toBase(e, a, b);
+	public static EditList toBase(EditList edits,
+			Subsequence a, Subsequence b) {
+		for (int i=0; i<edits.size(); i++)
+			toBase(edits.get(i), a, b);
 		return edits;
 	}
 
-	final S base;
+	final Sequence base;
 
 	final int begin;
 
@@ -150,13 +139,12 @@ public final class Subsequence<S extends Sequence> extends Sequence {
 	 *            One past the last element index of {@code base} that will be
 	 *            part of this new subsequence.
 	 */
-	public Subsequence(S base, int begin, int end) {
+	public Subsequence(Sequence base, int begin, int end) {
 		this.base = base;
 		this.begin = begin;
 		this.size = end - begin;
 	}
 
-	@Override
 	public int size() {
 		return size;
 	}

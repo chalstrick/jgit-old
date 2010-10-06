@@ -49,19 +49,17 @@ package org.eclipse.jgit.diff;
  * This pair wraps two sequences that contain cached hash codes for the input
  * sequences.
  *
- * @param <S>
- *            the base sequence type.
  */
-public class HashedSequencePair<S extends Sequence> {
-	private final SequenceComparator<? super S> cmp;
+public class HashedSequencePair {
+	private final SequenceComparator cmp;
 
-	private final S baseA;
+	private final Sequence baseA;
 
-	private final S baseB;
+	private final Sequence baseB;
 
-	private HashedSequence<S> cachedA;
+	private HashedSequence cachedA;
 
-	private HashedSequence<S> cachedB;
+	private HashedSequence cachedB;
 
 	/**
 	 * Construct a pair to provide fast hash codes.
@@ -73,36 +71,36 @@ public class HashedSequencePair<S extends Sequence> {
 	 * @param b
 	 *            the B sequence.
 	 */
-	public HashedSequencePair(SequenceComparator<? super S> cmp, S a, S b) {
+	public HashedSequencePair(SequenceComparator cmp, Sequence a, Sequence b) {
 		this.cmp = cmp;
 		this.baseA = a;
 		this.baseB = b;
 	}
 
 	/** @return obtain a comparator that uses the cached hash codes. */
-	public HashedSequenceComparator<S> getComparator() {
-		return new HashedSequenceComparator<S>(cmp);
+	public HashedSequenceComparator getComparator() {
+		return new HashedSequenceComparator(cmp);
 	}
 
 	/** @return wrapper around A that includes cached hash codes. */
-	public HashedSequence<S> getA() {
+	public HashedSequence getA() {
 		if (cachedA == null)
 			cachedA = wrap(baseA);
 		return cachedA;
 	}
 
 	/** @return wrapper around B that includes cached hash codes. */
-	public HashedSequence<S> getB() {
+	public HashedSequence getB() {
 		if (cachedB == null)
 			cachedB = wrap(baseB);
 		return cachedB;
 	}
 
-	private HashedSequence<S> wrap(S base) {
+	private HashedSequence wrap(Sequence base) {
 		final int end = base.size();
 		final int[] hashes = new int[end];
 		for (int ptr = 0; ptr < end; ptr++)
 			hashes[ptr] = cmp.hash(base, ptr);
-		return new HashedSequence<S>(base, hashes);
+		return new HashedSequence(base, hashes);
 	}
 }

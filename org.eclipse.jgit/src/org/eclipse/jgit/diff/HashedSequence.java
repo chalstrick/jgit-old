@@ -52,20 +52,17 @@ package org.eclipse.jgit.diff;
  *
  * To construct an instance of this type use {@link HashedSequencePair}.
  *
- * @param <S>
- *            the base sequence type.
  */
-public final class HashedSequence<S extends Sequence> extends Sequence {
-	final S base;
+public final class HashedSequence extends Sequence {
+	final Sequence base;
 
 	final int[] hashes;
 
-	HashedSequence(S base, int[] hashes) {
+	HashedSequence(Sequence base, int[] hashes) {
 		this.base = base;
 		this.hashes = hashes;
 	}
 
-	@Override
 	public int size() {
 		return base.size();
 	}
