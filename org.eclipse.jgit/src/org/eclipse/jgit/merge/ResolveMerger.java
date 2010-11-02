@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -163,6 +164,8 @@ public class ResolveMerger extends ThreeWayMerger {
 	protected boolean mergeImpl() throws IOException {
 		boolean implicitDirCache = false;
 
+		log("mergeImpl() start");
+
 		if (dircache == null) {
 			dircache = getRepository().lockDirCache();
 			implicitDirCache = true;
@@ -182,6 +185,7 @@ public class ResolveMerger extends ThreeWayMerger {
 				tw.addTree(workingTreeIterator);
 
 			while (tw.next()) {
+				log("Handling path %s", tw.getPathString());
 				if (!processEntry(
 						tw.getTree(T_BASE, CanonicalTreeParser.class),
 						tw.getTree(T_OURS, CanonicalTreeParser.class),
@@ -225,6 +229,7 @@ public class ResolveMerger extends ThreeWayMerger {
 		} finally {
 			if (implicitDirCache)
 				dircache.unlock();
+			log("mergeImpl() stop");
 		}
 	}
 
@@ -633,5 +638,12 @@ public class ResolveMerger extends ThreeWayMerger {
 	 */
 	public void setWorkingTreeIterator(WorkingTreeIterator workingTreeIterator) {
 		this.workingTreeIterator = workingTreeIterator;
+	}
+
+	private static final void log(String formatStr, Object... o) {
+		System.out.printf("%s,%2$tH:%2$tM:%2$tS:%2$tL: ",
+				ResolveMerger.class.getSimpleName(), new Date());
+		System.out.printf(formatStr, o);
+		System.out.println();
 	}
 }

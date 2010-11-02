@@ -44,6 +44,7 @@
 package org.eclipse.jgit.merge;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
@@ -85,14 +86,18 @@ public final class MergeAlgorithm {
 	 */
 	public static <S extends Sequence> MergeResult<S> merge(
 			SequenceComparator<S> cmp, S base, S ours, S theirs) {
+		log("Starting ours: %s, theirs: %s, cmp: %s, base: %s", cmp, base,
+				ours, theirs);
 		List<S> sequences = new ArrayList<S>(3);
 		sequences.add(base);
 		sequences.add(ours);
 		sequences.add(theirs);
 		MergeResult result = new MergeResult<S>(sequences);
 		EditList oursEdits = MyersDiff.INSTANCE.diff(cmp, base, ours);
+		log("diffed ours: %s", oursEdits);
 		Iterator<Edit> baseToOurs = oursEdits.iterator();
 		EditList theirsEdits = MyersDiff.INSTANCE.diff(cmp, base, theirs);
+		log("diffed theirs: %s", theirsEdits);
 		Iterator<Edit> baseToTheirs = theirsEdits.iterator();
 		int current = 0; // points to the next line (first line is 0) of base
 		                 // which was not handled yet
@@ -102,8 +107,14 @@ public final class MergeAlgorithm {
 		// iterate over all edits from base to ours and from base to theirs
 		// leave the loop when there are no edits more for ours or for theirs
 		// (or both)
+		log("entering the mainloop");
 		while (theirsEdit != END_EDIT || oursEdit != END_EDIT) {
+			log("working on these edits oursEdit: %s, theirsEdit: %s",
+					oursEdit,
+					theirsEdit);
+
 			if (oursEdit.getEndA() < theirsEdit.getBeginA()) {
+				log("non-conflicting, take ours");
 				// something was changed in ours not overlapping with any change
 				// from theirs. First add the common part in front of the edit
 				// then the edit.
@@ -116,6 +127,7 @@ public final class MergeAlgorithm {
 				current = oursEdit.getEndA();
 				oursEdit = nextEdit(baseToOurs);
 			} else if (theirsEdit.getEndA() < oursEdit.getBeginA()) {
+				log("non-conflicting, take theirs");
 				// something was changed in theirs not overlapping with any
 				// from ours. First add the common part in front of the edit
 				// then the edit.
@@ -128,11 +140,18 @@ public final class MergeAlgorithm {
 				current = theirsEdit.getEndA();
 				theirsEdit = nextEdit(baseToTheirs);
 			} else {
+				log("found overlapping edits!");
+
 				// here we found a real overlapping modification
 
 				// if there is a common part in front of the conflict add it
 				if (oursEdit.getBeginA() != current
 						&& theirsEdit.getBeginA() != current) {
+					log("added some common non-handled part in front of the conflicting edits. from: %d, to: %d)",
+							current,
+							Math.min(oursEdit.getBeginA(),
+									theirsEdit.getBeginA()));
+
 					result.add(0, current, Math.min(oursEdit.getBeginA(),
 							theirsEdit.getBeginA()), ConflictState.NO_CONFLICT);
 				}
@@ -141,6 +160,7 @@ public final class MergeAlgorithm {
 				// want to handle
 				int oursBeginB = oursEdit.getBeginB();
 				int theirsBeginB = theirsEdit.getBeginB();
+
 				// harmonize the start of the ranges in A and B
 				if (oursEdit.getBeginA() < theirsEdit.getBeginA()) {
 					theirsBeginB -= theirsEdit.getBeginA()
@@ -148,6 +168,8 @@ public final class MergeAlgorithm {
 				} else {
 					oursBeginB -= oursEdit.getBeginA() - theirsEdit.getBeginA();
 				}
+				log("after harmonizing starts. oursBeginB: %d, theirsBeginB: %d)",
+						oursBeginB, theirsBeginB);
 
 				// combine edits:
 				// Maybe an Edit on one side corresponds to multiple Edits on
@@ -182,9 +204,13 @@ public final class MergeAlgorithm {
 					if (oursEdit.getEndA() >= nextTheirsEdit.getBeginA()) {
 						theirsEdit = nextTheirsEdit;
 						nextTheirsEdit = nextEdit(baseToTheirs);
+						log("after combining edits. oursEdit: %s, nextOursedit: %s, theirsEdit: %s, nextTheirsEdit: %s",
+								oursEdit, nextOursEdit, theirsEdit, nextTheirsEdit);
 					} else if (theirsEdit.getEndA() >= nextOursEdit.getBeginA()) {
 						oursEdit = nextOursEdit;
 						nextOursEdit = nextEdit(baseToOurs);
+						log("after combining edits. oursEdit: %s, nextOursedit:%s, theirsEdit: %s, nextTheirsEdit: %s",
+								oursEdit, nextOursEdit, theirsEdit, nextTheirsEdit);
 					} else {
 						break;
 					}
@@ -193,10 +219,14 @@ public final class MergeAlgorithm {
 				// harmonize the end of the ranges in A and B
 				int oursEndB = oursEdit.getEndB();
 				int theirsEndB = theirsEdit.getEndB();
-				if (oursEdit.getEndA() < theirsEdit.getEndA()) {
-					oursEndB += theirsEdit.getEndA() - oursEdit.getEndA();
-				} else {
-					theirsEndB += oursEdit.getEndA() - theirsEdit.getEndA();
+				if (oursEdit.getEndA() != theirsEdit.getEndA()) {
+					if (oursEdit.getEndA() < theirsEdit.getEndA()) {
+						oursEndB += theirsEdit.getEndA() - oursEdit.getEndA();
+					} else {
+						theirsEndB += oursEdit.getEndA() - theirsEdit.getEndA();
+					}
+					log("after harmonizing ends. oursEndB: %d, theirsEndB: %d",
+							oursEndB, theirsEndB);
 				}
 
 				// A conflicting region is found. Strip off common lines in
@@ -227,6 +257,10 @@ public final class MergeAlgorithm {
 					commonSuffix++;
 				minBSize -= commonSuffix;
 
+				if (commonPrefix > 0 || commonSuffix > 0)
+					log("found common pre- or suffix. commonPrefix: %d, commonSuffix: %d",
+							commonPrefix, commonSuffix);
+
 				// Add the common lines at start of conflict
 				if (commonPrefix > 0)
 					result.add(1, oursBeginB, oursBeginB + commonPrefix,
@@ -240,7 +274,13 @@ public final class MergeAlgorithm {
 					result.add(2, theirsBeginB + commonPrefix, theirsEndB
 							- commonSuffix,
 							ConflictState.NEXT_CONFLICTING_RANGE);
-				}
+					log("adding a conflict. oursBegin: %d, oursEnd: %d, theirsBegin: %d, theirsEnd: %d",
+							oursBeginB + commonPrefix, oursEndB - commonSuffix,
+							theirsBeginB + commonPrefix, theirsEndB
+									- commonSuffix);
+				} else
+					log("a conflict was not recorded because all was eaten up by common pre-/suffixes. minBSize: %d, BSizeDelta: %d",
+							minBSize, BSizeDelta);
 
 				// Add the common lines at end of conflict
 				if (commonSuffix > 0)
@@ -252,10 +292,14 @@ public final class MergeAlgorithm {
 				theirsEdit = nextTheirsEdit;
 			}
 		}
+		log("mainloop ended");
+
 		// maybe we have a common part behind the last edit: copy it to the
 		// result
 		if (current < base.size()) {
 			result.add(0, current, base.size(), ConflictState.NO_CONFLICT);
+			log("added some common non-handled part after the last edit. from: %d, to: %d",
+					current, base.size());
 		}
 		return result;
 	}
@@ -272,5 +316,13 @@ public final class MergeAlgorithm {
 	 */
 	private static Edit nextEdit(Iterator<Edit> it) {
 		return (it.hasNext() ? it.next() : END_EDIT);
+	}
+
+	private static final void log(String formatStr, Object... o) {
+		System.out.printf("%s,%2$tH:%2$tM:%2$tS:%2$tL: ",
+				MergeAlgorithm.class.getSimpleName(),
+				new Date());
+		System.out.printf(formatStr, o);
+		System.out.println();
 	}
 }
