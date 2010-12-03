@@ -92,6 +92,22 @@ public abstract class AbstractTreeIterator {
 	AbstractTreeIterator matches;
 
 	/**
+	 * Compares the current entry with the entry of another
+	 * {@link AbstractTreeIterator}. The default implementation will compare the
+	 * the content-id's and will return <code>true</code> if both are equal.
+	 * Subclasses may override this method to e.g. implement faster comparisons.
+	 *
+	 * @param other
+	 *            the iterator which entry should be compared with the current
+	 *            one
+	 * @return <code>true</code> if both entries have equal content,
+	 *         <code>false</code> otherwise
+	 */
+	public boolean compareContent(AbstractTreeIterator other) {
+		return idEqual(other);
+	}
+
+	/**
 	 * Number of entries we moved forward to force a D/F conflict match.
 	 *
 	 * @see NameConflictTreeWalk

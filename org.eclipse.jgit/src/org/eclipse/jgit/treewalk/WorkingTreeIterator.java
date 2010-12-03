@@ -64,6 +64,7 @@ import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.ignore.IgnoreNode;
 import org.eclipse.jgit.ignore.IgnoreRule;
@@ -881,5 +882,24 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 				contentReadBuffer = new byte[BUFFER_SIZE];
 			}
 		}
+	}
+
+	/**
+	 * Override
+	 * {@link AbstractTreeIterator#compareContent(AbstractTreeIterator)} to
+	 * perform a much faster content comparison for comparing a
+	 * {@link WorkingTreeIterator} and a {@link DirCacheIterator}
+	 *
+	 * @param other
+	 *            the {@link AbstractTreeIterator} to compare with
+	 * @return <code>true</code> if the the current entry and the
+	 *         {@link DirCacheIterator} point to same content, same mode and
+	 *         same modification timestamps.
+	 */
+	public boolean compareContent(AbstractTreeIterator other) {
+		if (other instanceof DirCacheIterator)
+			return !isModified(((DirCacheIterator) other).getDirCacheEntry(), false, true);
+		else
+			return super.compareContent(other);
 	}
 }

@@ -52,6 +52,7 @@ import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
+import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 
 /**
  * Iterate a {@link DirCache} as part of a <code>TreeWalk</code>.
@@ -248,5 +249,25 @@ public class DirCacheIterator extends AbstractTreeIterator {
 	 */
 	public DirCacheEntry getDirCacheEntry() {
 		return currentSubtree == null ? currentEntry : null;
+	}
+
+	/**
+	 * Override
+	 * {@link AbstractTreeIterator#compareContent(AbstractTreeIterator)} to
+	 * perform a much faster content comparison for comparing a
+	 * {@link WorkingTreeIterator} and a {@link DirCacheIterator}
+	 *
+	 * @param other
+	 *            the {@link AbstractTreeIterator} to compare with
+	 * @return <code>true</code> if the the current entry and the
+	 *         {@link WorkingTreeIterator} point to same content, same mode and
+	 *         same modification timestamps.
+	 */
+	public boolean compareContent(AbstractTreeIterator other) {
+		if (other instanceof WorkingTreeIterator)
+			return !((WorkingTreeIterator) other).isModified(
+					getDirCacheEntry(), false, true);
+		else
+			return super.compareContent(other);
 	}
 }

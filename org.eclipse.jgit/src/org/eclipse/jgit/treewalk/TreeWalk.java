@@ -84,6 +84,7 @@ import org.eclipse.jgit.util.RawParseUtils;
  * permitted, even from concurrent threads.
  */
 public class TreeWalk {
+
 	/**
 	 * Open a tree walk and filter to exactly one path.
 	 * <p>
@@ -693,7 +694,7 @@ public class TreeWalk {
 		if (!a.hasId() || !b.hasId())
 			return false;
 		if (a.matches == ch && b.matches == ch)
-			return a.idEqual(b);
+			return a.compareContent(b);
 		return false;
 	}
 
