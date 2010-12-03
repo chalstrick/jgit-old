@@ -79,6 +79,15 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
  * </ul>
  */
 public class IndexDiff {
+	/**
+	 *
+	 */
+	public static long whileCounter = 0;
+
+	/**
+	 *
+	 */
+	public static long sha1Counter = 0;
 
 	private final static int TREE = 0;
 
@@ -168,7 +177,14 @@ public class IndexDiff {
 	 */
 	public boolean diff() throws IOException {
 		boolean changesExist = false;
+
+		whileCounter = 0;
+		sha1Counter = 0;
+
 		DirCache dirCache = repository.readDirCache();
+
+		long startMillis = System.currentTimeMillis();
+
 		TreeWalk treeWalk = new TreeWalk(repository);
 		treeWalk.reset();
 		treeWalk.setRecursive(true);
@@ -187,7 +203,9 @@ public class IndexDiff {
 		filters.add(new SkipWorkTreeFilter(INDEX));
 		filters.add(new IndexWorkingTreeDiff(INDEX, WORKDIR));
 		treeWalk.setFilter(AndTreeFilter.create(filters));
+		long beforeWhileMillis = System.currentTimeMillis();
 		while (treeWalk.next()) {
+			whileCounter++;
 			AbstractTreeIterator treeIterator = treeWalk.getTree(TREE,
 					AbstractTreeIterator.class);
 			DirCacheIterator dirCacheIterator = treeWalk.getTree(INDEX,
@@ -248,6 +266,12 @@ public class IndexDiff {
 				}
 			}
 		}
+		long afterWhileMillis = System.currentTimeMillis();
+
+		System.out.println("IndexDiff diff(): beforeWhile:"
+				+ (beforeWhileMillis - startMillis) + ", afterWhile:"
+				+ (afterWhileMillis - startMillis) + ", whileCounter:"
+				+ whileCounter + ", sha1Counter:" + sha1Counter);
 		return changesExist;
 	}
 

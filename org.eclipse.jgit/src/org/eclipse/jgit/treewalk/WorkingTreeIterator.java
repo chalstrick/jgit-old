@@ -69,6 +69,7 @@ import org.eclipse.jgit.ignore.IgnoreNode;
 import org.eclipse.jgit.ignore.IgnoreRule;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.IndexDiff;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.io.EolCanonicalizingInputStream;
@@ -217,6 +218,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 	private byte[] idBufferBlob(final Entry e) {
 		try {
+			IndexDiff.sha1Counter++;
 			final InputStream is = e.openInputStream();
 			if (is == null)
 				return zeroid;
