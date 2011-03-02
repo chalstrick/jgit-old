@@ -343,8 +343,27 @@ public class RefUpdateTest extends SampleDataRepositoryTestCase {
 	}
 
 	/**
+	 * Update the HEAD ref. Detach HEAD by
+	 * 
+	 * @throws Exception
+	 */
+	@Test
+	public void testDetachHeadSameCommit() throws Exception {
+		ObjectId pid = db.resolve("refs/heads/master");
+		RefUpdate updateRef = db.updateRef("HEAD", true);
+		updateRef.setForceUpdate(true);
+		updateRef.setNewObjectId(pid);
+		Result update = updateRef.update();
+		assertEquals(Result.FORCED, update);
+		assertEquals(pid, db.resolve("HEAD"));
+		Ref ref = db.getRef("HEAD");
+		assertEquals("HEAD", ref.getName());
+		assertTrue("is detached", !ref.isSymbolic());
+	}
+
+	/**
 	 * Update the HEAD ref when the referenced branch is unborn
-	 *
+	 * 
 	 * @throws Exception
 	 */
 	@Test

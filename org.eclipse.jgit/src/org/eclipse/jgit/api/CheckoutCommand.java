@@ -79,9 +79,7 @@ public class CheckoutCommand extends GitCommand<Ref> {
 
 	private CreateBranchCommand.SetupUpstreamMode upstreamMode;
 
-	private String startPoint = Constants.HEAD;
-
-	private RevCommit startCommit;
+	private ObjectId startPoint;
 
 	private CheckoutResult status;
 
@@ -106,14 +104,14 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	public Ref call() throws JGitInternalException, RefAlreadyExistsException,
 			RefNotFoundException, InvalidRefNameException {
 		checkCallable();
-		processOptions();
 		try {
+			processOptions();
 
 			if (createBranch) {
 				Git git = new Git(repo);
 				CreateBranchCommand command = git.branchCreate();
 				command.setName(name);
-				command.setStartPoint(getStartPoint().name());
+				command.setStartPoint(startPoint.getName());
 				if (upstreamMode != null)
 					command.setUpstreamMode(upstreamMode);
 				command.call();
@@ -192,25 +190,10 @@ public class CheckoutCommand extends GitCommand<Ref> {
 		}
 	}
 
-	private ObjectId getStartPoint() throws AmbiguousObjectException,
+	private void processOptions() throws InvalidRefNameException,
 			RefNotFoundException, IOException {
-		if (startCommit != null)
-			return startCommit.getId();
-		ObjectId result = null;
-		try {
-			result = repo.resolve((startPoint == null) ? Constants.HEAD
-					: startPoint);
-		} catch (AmbiguousObjectException e) {
-			throw e;
-		}
-		if (result == null)
-			throw new RefNotFoundException(MessageFormat.format(
-					JGitText.get().refNotResolved,
-					startPoint != null ? startPoint : Constants.HEAD));
-		return result;
-	}
-
-	private void processOptions() throws InvalidRefNameException {
+		if (startPoint == null)
+			setStartPoint(Constants.HEAD);
 		if (name == null
 				|| !Repository.isValidRefName(Constants.R_HEADS + name))
 			throw new InvalidRefNameException(MessageFormat.format(JGitText
@@ -255,15 +238,26 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	}
 
 	/**
-	 * @param startPoint
+	 * @param sp
 	 *            corresponds to the start-point option; if <code>null</code>,
 	 *            the current HEAD will be used
 	 * @return this instance
+	 * @throws IOException
+	 * @throws RefNotFoundException
 	 */
-	public CheckoutCommand setStartPoint(String startPoint) {
+	public CheckoutCommand setStartPoint(String sp) throws IOException,
+			RefNotFoundException {
 		checkCallable();
-		this.startPoint = startPoint;
-		this.startCommit = null;
+		try {
+			startPoint = repo.resolve((sp == null) ? Constants.HEAD : sp);
+		} catch (AmbiguousObjectException e) {
+			throw e;
+		}
+		if (startPoint == null)
+			throw new RefNotFoundException(MessageFormat.format(
+					JGitText.get().refNotResolved,
+ sp != null ? sp
+							: Constants.HEAD));
 		return this;
 	}
 
@@ -275,8 +269,8 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	 */
 	public CheckoutCommand setStartPoint(RevCommit startCommit) {
 		checkCallable();
-		this.startCommit = startCommit;
-		this.startPoint = null;
+		if (startCommit != null)
+			startPoint = startCommit.getId();
 		return this;
 	}
 
