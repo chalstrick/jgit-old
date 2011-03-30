@@ -56,6 +56,7 @@ import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryTestCase;
 import org.eclipse.jgit.revwalk.RevBlob;
+import org.eclipse.jgit.util.FileUtils;
 import org.junit.Test;
 
 public class CloneCommandTest extends RepositoryTestCase {
@@ -88,9 +89,10 @@ public class CloneCommandTest extends RepositoryTestCase {
 	}
 
 	@Test
-	public void testCloneRepository() {
+	public void testCloneRepository() throws IOException {
+		File directory = null;
 		try {
-			File directory = createTempDirectory("testCloneRepository");
+			directory = createTempDirectory("testCloneRepository");
 			CloneCommand command = Git.cloneRepository();
 			command.setDirectory(directory);
 			command.setURI("file://"
@@ -101,13 +103,18 @@ public class CloneCommandTest extends RepositoryTestCase {
 			assertNotNull(id);
 		} catch (Exception e) {
 			fail(e.getMessage());
+		} finally {
+			if (directory != null)
+				FileUtils.delete(directory, FileUtils.RECURSIVE
+						| FileUtils.RETRY);
 		}
 	}
 
 	@Test
-	public void testCloneRepositoryWithBranch() {
+	public void testCloneRepositoryWithBranch() throws IOException {
+		File directory = null;
 		try {
-			File directory = createTempDirectory("testCloneRepositoryWithBranch");
+			directory = createTempDirectory("testCloneRepositoryWithBranch");
 			CloneCommand command = Git.cloneRepository();
 			command.setBranch("refs/heads/test");
 			command.setDirectory(directory);
@@ -119,6 +126,10 @@ public class CloneCommandTest extends RepositoryTestCase {
 					"refs/heads/test");
 		} catch (Exception e) {
 			fail(e.getMessage());
+		} finally {
+			if (directory != null)
+				FileUtils.delete(directory, FileUtils.RECURSIVE
+						| FileUtils.RETRY);
 		}
 	}
 
