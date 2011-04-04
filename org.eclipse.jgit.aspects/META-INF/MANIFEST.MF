@@ -1,0 +1,19 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: %plugin_name
+Bundle-SymbolicName: org.eclipse.jgit.aspects
+Bundle-Version: 0.12.0.qualifier
+Bundle-Vendor: %provider_name
+Bundle-Localization: plugin
+Bundle-RequiredExecutionEnvironment: J2SE-1.5
+Implementation-Title: JGit aspects
+Require-Bundle: org.eclipse.jgit;bundle-version="0.12.0",
+ org.eclipse.jgit.console;bundle-version="0.12.0",
+ org.eclipse.jgit.http.server;bundle-version="0.12.0",
+ org.eclipse.jgit.http.test;bundle-version="0.12.0",
+ org.eclipse.jgit.iplog;bundle-version="0.12.0",
+ org.eclipse.jgit.junit;bundle-version="0.12.0",
+ org.eclipse.jgit.junit.http;bundle-version="0.12.0",
+ org.eclipse.jgit.pgm;bundle-version="0.12.0",
+ org.eclipse.jgit.test;bundle-version="0.12.0",
+ org.eclipse.jgit.ui;bundle-version="0.12.0"
