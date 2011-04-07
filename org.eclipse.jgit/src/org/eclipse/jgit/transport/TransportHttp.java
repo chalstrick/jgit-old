@@ -220,9 +220,12 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		final boolean sslVerify;
 
+		final String sslCert;
+
 		HttpConfig(final Config rc) {
 			postBuffer = rc.getInt("http", "postbuffer", 1 * 1024 * 1024); //$NON-NLS-1$  //$NON-NLS-2$
 			sslVerify = rc.getBoolean("http", "sslVerify", true);
+			sslCert = rc.getString("http", null, "sslCert");
 		}
 	}
 
@@ -475,8 +478,13 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpURLConnection conn = (HttpURLConnection) u.openConnection(proxy);
 
-		if (!http.sslVerify && "https".equals(u.getProtocol())) {
-			disableSslVerify(conn);
+		if ("https".equals(u.getProtocol())) {
+			if (!http.sslVerify) {
+				disableSslVerify(conn);
+			}
+			if (http.sslCert != null) {
+				System.setProperty("javax.net.ssl.keyStore", http.sslCert);
+			}
 		}
 
 		conn.setRequestMethod(method);

@@ -61,6 +61,7 @@ import org.eclipse.jetty.security.ConstraintMapping;
 import org.eclipse.jetty.security.ConstraintSecurityHandler;
 import org.eclipse.jetty.security.MappedLoginService;
 import org.eclipse.jetty.security.authentication.BasicAuthenticator;
+import org.eclipse.jetty.security.authentication.ClientCertAuthenticator;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.UserIdentity;
@@ -163,6 +164,12 @@ public class AppServer {
 	public ServletContextHandler authBasic(ServletContextHandler ctx) {
 		assertNotYetSetUp();
 		auth(ctx, new BasicAuthenticator());
+		return ctx;
+	}
+
+	public ServletContextHandler authClientCert(ServletContextHandler ctx) {
+		assertNotYetSetUp();
+		auth(ctx, new ClientCertAuthenticator());
 		return ctx;
 	}
 

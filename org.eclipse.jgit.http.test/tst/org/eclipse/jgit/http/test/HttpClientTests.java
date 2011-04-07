@@ -72,6 +72,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepository;
@@ -81,6 +82,7 @@ import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.junit.Test;
 
 public class HttpClientTests extends HttpTestCase {
 	private TestRepository<FileRepository> remoteRepository;
@@ -88,6 +90,8 @@ public class HttpClientTests extends HttpTestCase {
 	private URIish dumbAuthNoneURI;
 
 	private URIish dumbAuthBasicURI;
+
+	private URIish dumbAuthCertURI;
 
 	private URIish smartAuthNoneURI;
 
@@ -101,6 +105,7 @@ public class HttpClientTests extends HttpTestCase {
 
 		ServletContextHandler dNone = dumb("/dnone");
 		ServletContextHandler dBasic = server.authBasic(dumb("/dbasic"));
+		ServletContextHandler dCert = server.authClientCert(dumb("/dbasic"));
 
 		ServletContextHandler sNone = smart("/snone");
 		ServletContextHandler sBasic = server.authBasic(smart("/sbasic"));
@@ -110,6 +115,7 @@ public class HttpClientTests extends HttpTestCase {
 		final String srcName = nameOf(remoteRepository.getRepository());
 		dumbAuthNoneURI = toURIish(dNone, srcName);
 		dumbAuthBasicURI = toURIish(dBasic, srcName);
+		dumbAuthCertURI = toURIish(dCert, srcName);
 
 		smartAuthNoneURI = toURIish(sNone, srcName);
 		smartAuthBasicURI = toURIish(sBasic, srcName);
@@ -185,6 +191,7 @@ public class HttpClientTests extends HttpTestCase {
 		}
 	}
 
+	@Test
 	public void testListRemote_Dumb_DetachedHEAD() throws Exception {
 		Repository src = remoteRepository.getRepository();
 		RefUpdate u = src.updateRef(Constants.HEAD, true);
@@ -195,6 +202,35 @@ public class HttpClientTests extends HttpTestCase {
 		Repository dst = createBareRepository();
 		Ref head;
 		Transport t = Transport.open(dst, dumbAuthNoneURI);
+		try {
+			FetchConnection c = t.openFetch();
+			try {
+				head = c.getRef(Constants.HEAD);
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+		assertNotNull("has " + Constants.HEAD, head);
+		assertEquals(Q, head.getObjectId());
+	}
+
+	@Test
+	public void testListRemote_Dumb_NeedClientCert() throws Exception {
+		Repository src = remoteRepository.getRepository();
+		RefUpdate u = src.updateRef(Constants.HEAD, true);
+		RevCommit Q = remoteRepository.commit().message("Q").create();
+		u.setNewObjectId(Q);
+		assertEquals(RefUpdate.Result.FORCED, u.forceUpdate());
+
+		Repository dst = createBareRepository();
+		StoredConfig config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", false);
+		config.setString("http", null, "sslCert", "C:\\Users\\d032780\\f.cer");
+
+		Ref head;
+		Transport t = Transport.open(dst, dumbAuthCertURI);
 		try {
 			FetchConnection c = t.openFetch();
 			try {
