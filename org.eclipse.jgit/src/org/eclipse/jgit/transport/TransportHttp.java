@@ -56,6 +56,7 @@ import static org.eclipse.jgit.util.HttpSupport.METHOD_POST;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,7 +69,11 @@ import java.net.ProxySelector;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -83,9 +88,14 @@ import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
 import org.eclipse.jgit.JGitText;
@@ -220,9 +230,27 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		final boolean sslVerify;
 
+		final String sslCAInfo;
+
+		final String sslCAInfoType;
+
+		final String sslCAInfoPassword;
+
+		final String sslCert;
+
+		final String sslCertType;
+
+		final String sslCertPassword;
+
 		HttpConfig(final Config rc) {
 			postBuffer = rc.getInt("http", "postbuffer", 1 * 1024 * 1024); //$NON-NLS-1$  //$NON-NLS-2$
 			sslVerify = rc.getBoolean("http", "sslVerify", true);
+			sslCAInfo = rc.getString("http", null, "sslCAInfo");
+			sslCAInfoType = rc.getString("http", null, "sslCAInfoType");
+			sslCAInfoPassword = rc.getString("http", null, "sslCAInfoPassword");
+			sslCert = rc.getString("http", null, "sslCert");
+			sslCertType = rc.getString("http", null, "sslCertType");
+			sslCertPassword = rc.getString("http", null, "sslCertPassword");
 		}
 	}
 
@@ -475,8 +503,19 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpURLConnection conn = (HttpURLConnection) u.openConnection(proxy);
 
-		if (!http.sslVerify && "https".equals(u.getProtocol())) {
-			disableSslVerify(conn);
+		if ("https".equals(u.getProtocol())) {
+			KeyManager[] keyManagers = null;
+			if (http.sslCert != null)
+				keyManagers = createKeyManagers(http.sslCert, http.sslCertType,
+						http.sslCertPassword);
+
+			TrustManager[] trustManagers = null;
+			if (http.sslCAInfo != null)
+				trustManagers = createTrustManagers(http.sslCAInfo,
+						http.sslCAInfoType, http.sslCAInfoPassword);
+
+			configureSsl(conn, keyManagers, trustManagers, !http.sslVerify,
+					true /* TODO */);
 		}
 
 		conn.setRequestMethod(method);
@@ -490,17 +529,66 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		return conn;
 	}
 
-	private void disableSslVerify(URLConnection conn)
-			throws IOException {
-		final TrustManager[] trustAllCerts = new TrustManager[] { new DummyX509TrustManager() };
+	private void configureSsl(URLConnection conn,
+			final KeyManager[] keyManagers, final TrustManager[] trustManagers,
+			boolean trustAllCerts, boolean trustAllHosts) throws IOException {
+		final TrustManager[] dummyTrustManagers = new TrustManager[] { new DummyX509TrustManager() };
 		try {
 			SSLContext ctx = SSLContext.getInstance("SSL");
-			ctx.init(null, trustAllCerts, null);
+			ctx.init(keyManagers, trustAllCerts ? dummyTrustManagers
+					: trustManagers, null);
 			final HttpsURLConnection sslConn = (HttpsURLConnection) conn;
 			sslConn.setSSLSocketFactory(ctx.getSocketFactory());
+			if (trustAllHosts)
+				sslConn.setHostnameVerifier(new DummyHostnameVerifier());
 		} catch (KeyManagementException e) {
 			throw new IOException(e.getMessage());
 		} catch (NoSuchAlgorithmException e) {
+			throw new IOException(e.getMessage());
+		}
+	}
+
+	private static KeyManager[] createKeyManagers(final String path,
+			final String type, final String password) throws IOException {
+		try {
+			InputStream inputStream = new FileInputStream(path);
+			KeyStore keyStore = KeyStore.getInstance(type != null ? type
+					: KeyStore.getDefaultType());
+			keyStore.load(inputStream,
+					password != null ? password.toCharArray() : null);
+			KeyManagerFactory keyManagerFactory = KeyManagerFactory
+					.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+			keyManagerFactory.init(keyStore,
+					password != null ? password.toCharArray() : null);
+			return keyManagerFactory.getKeyManagers();
+		} catch (KeyStoreException e) {
+			throw new IOException(e.getMessage());
+		} catch (NoSuchAlgorithmException e) {
+			throw new IOException(e.getMessage());
+		} catch (CertificateException e) {
+			throw new IOException(e.getMessage());
+		} catch (UnrecoverableKeyException e) {
+			throw new IOException(e.getMessage());
+		}
+	}
+
+	private static TrustManager[] createTrustManagers(final String path,
+			final String type, final String password) throws IOException {
+		try {
+			InputStream inputStream = new FileInputStream(path);
+			KeyStore trustStore = KeyStore.getInstance(type != null ? type
+					: KeyStore.getDefaultType());
+			trustStore.load(inputStream,
+					password != null ? password.toCharArray() : null);
+			TrustManagerFactory trustManagerFactory = TrustManagerFactory
+					.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+			trustManagerFactory.init(trustStore);
+			return trustManagerFactory.getTrustManagers();
+		} catch (KeyStoreException e) {
+			throw new IOException(e.getMessage());
+		} catch (NoSuchAlgorithmException e) {
+			throw new IOException(e.getMessage());
+		} catch (CertificateException e) {
 			throw new IOException(e.getMessage());
 		}
 	}
@@ -884,6 +972,13 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		public void checkServerTrusted(X509Certificate[] certs, String authType) {
 			// no check
+		}
+	}
+
+	private static class DummyHostnameVerifier implements HostnameVerifier {
+		public boolean verify(String hostname, SSLSession session) {
+			// no check
+			return true;
 		}
 	}
 }

@@ -69,9 +69,11 @@ import org.eclipse.jgit.junit.http.AccessEvent;
 import org.eclipse.jgit.junit.http.AppServer;
 import org.eclipse.jgit.junit.http.HttpTestCase;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepository;
@@ -91,6 +93,8 @@ public class HttpClientTests extends HttpTestCase {
 
 	private URIish dumbAuthBasicURI;
 
+	private URIish dumbAuthClientCertURI;
+
 	private URIish smartAuthNoneURI;
 
 	private URIish smartAuthBasicURI;
@@ -99,11 +103,15 @@ public class HttpClientTests extends HttpTestCase {
 	public void setUp() throws Exception {
 		super.setUp();
 
+		server.addSslConnector("C:\\tmp\\server.jks", "JKS", "server");
+
 		remoteRepository = createTestRepository();
 		remoteRepository.update(master, remoteRepository.commit().create());
 
 		ServletContextHandler dNone = dumb("/dnone");
 		ServletContextHandler dBasic = server.authBasic(dumb("/dbasic"));
+		ServletContextHandler dClientCert = server
+				.authClientCert(dumb("/dclientcert"));
 
 		ServletContextHandler sNone = smart("/snone");
 		ServletContextHandler sBasic = server.authBasic(smart("/sbasic"));
@@ -113,6 +121,7 @@ public class HttpClientTests extends HttpTestCase {
 		final String srcName = nameOf(remoteRepository.getRepository());
 		dumbAuthNoneURI = toURIish(dNone, srcName);
 		dumbAuthBasicURI = toURIish(dBasic, srcName);
+		dumbAuthClientCertURI = toURIish(dClientCert, srcName);
 
 		smartAuthNoneURI = toURIish(sNone, srcName);
 		smartAuthBasicURI = toURIish(sBasic, srcName);
@@ -311,7 +320,7 @@ public class HttpClientTests extends HttpTestCase {
 	}
 
 	@Test
-	public void testListRemote_Dumb_Auth() throws Exception {
+	public void testListRemote_Dumb_BasicAuth() throws Exception {
 		Repository dst = createBareRepository();
 		Transport t = Transport.open(dst, dumbAuthBasicURI);
 		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
@@ -331,6 +340,59 @@ public class HttpClientTests extends HttpTestCase {
 			String exp = dumbAuthBasicURI + ": "
 					+ JGitText.get().notAuthorized;
 			assertEquals(exp, err.getMessage());
+		} finally {
+			t.close();
+		}
+	}
+
+	@Test
+	public void testListRemote_Dumb_ClientCertAuth() throws Exception {
+		Repository dst = createBareRepository();
+		StoredConfig config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", true);
+		config.setString("http", null, "sslCAInfo", "C:\\tmp\\client.jks");
+		config.setString("http", null, "sslCAInfoType", "JKS");
+		config.setString("http", null, "sslCAInfoPassword", "client");
+		config.setString("http", null, "sslCert", "C:\\tmp\\client.jks");
+		config.setString("http", null, "sslCertType", "JKS");
+		config.setString("http", null, "sslCertPassword", "client");
+		config.save();
+		Transport t = Transport.open(dst, dumbAuthClientCertURI);
+		try {
+			FetchConnection c = t.openFetch();
+			try {
+				Ref head = c.getRef(Constants.HEAD);
+				assertNotNull(head);
+				assertTrue(head
+						.getObjectId()
+						.equals(ObjectId
+								.fromString("c58a4bec12cbf30cc1894f5ce8cf604bd6bad596")));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+
+		config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", false);
+		config.setString("http", null, "sslCert", "C:\\tmp\\client.jks");
+		config.setString("http", null, "sslCertType", "JKS");
+		config.setString("http", null, "sslCertPassword", "client");
+		config.save();
+		t = Transport.open(dst, dumbAuthClientCertURI);
+		try {
+			FetchConnection c = t.openFetch();
+			try {
+				Ref head = c.getRef(Constants.HEAD);
+				assertNotNull(head);
+				assertTrue(head
+						.getObjectId()
+						.equals(ObjectId
+								.fromString("c58a4bec12cbf30cc1894f5ce8cf604bd6bad596")));
+			} finally {
+				c.close();
+			}
 		} finally {
 			t.close();
 		}
