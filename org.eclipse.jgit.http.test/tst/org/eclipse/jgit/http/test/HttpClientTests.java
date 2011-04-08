@@ -69,9 +69,11 @@ import org.eclipse.jgit.junit.http.AccessEvent;
 import org.eclipse.jgit.junit.http.AppServer;
 import org.eclipse.jgit.junit.http.HttpTestCase;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepository;
@@ -81,6 +83,8 @@ import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.junit.Before;
+import org.junit.Test;
 
 public class HttpClientTests extends HttpTestCase {
 	private TestRepository<FileRepository> remoteRepository;
@@ -89,18 +93,25 @@ public class HttpClientTests extends HttpTestCase {
 
 	private URIish dumbAuthBasicURI;
 
+	private URIish dumbAuthClientCertURI;
+
 	private URIish smartAuthNoneURI;
 
 	private URIish smartAuthBasicURI;
 
+	@Before
 	public void setUp() throws Exception {
 		super.setUp();
+
+		server.addSslConnector("C:\\tmp\\server.jks", "JKS", "server");
 
 		remoteRepository = createTestRepository();
 		remoteRepository.update(master, remoteRepository.commit().create());
 
 		ServletContextHandler dNone = dumb("/dnone");
 		ServletContextHandler dBasic = server.authBasic(dumb("/dbasic"));
+		ServletContextHandler dClientCert = server
+				.authClientCert(dumb("/dclientcert"));
 
 		ServletContextHandler sNone = smart("/snone");
 		ServletContextHandler sBasic = server.authBasic(smart("/sbasic"));
@@ -110,6 +121,7 @@ public class HttpClientTests extends HttpTestCase {
 		final String srcName = nameOf(remoteRepository.getRepository());
 		dumbAuthNoneURI = toURIish(dNone, srcName);
 		dumbAuthBasicURI = toURIish(dBasic, srcName);
+		dumbAuthClientCertURI = toURIish(dClientCert, srcName);
 
 		smartAuthNoneURI = toURIish(sNone, srcName);
 		smartAuthBasicURI = toURIish(sBasic, srcName);
@@ -149,6 +161,7 @@ public class HttpClientTests extends HttpTestCase {
 		return db.getDirectory().getName();
 	}
 
+	@Test
 	public void testRepositoryNotFound_Dumb() throws Exception {
 		URIish uri = toURIish("/dumb.none/not-found");
 		Repository dst = createBareRepository();
@@ -167,6 +180,7 @@ public class HttpClientTests extends HttpTestCase {
 		}
 	}
 
+	@Test
 	public void testRepositoryNotFound_Smart() throws Exception {
 		URIish uri = toURIish("/smart.none/not-found");
 		Repository dst = createBareRepository();
@@ -185,6 +199,7 @@ public class HttpClientTests extends HttpTestCase {
 		}
 	}
 
+	@Test
 	public void testListRemote_Dumb_DetachedHEAD() throws Exception {
 		Repository src = remoteRepository.getRepository();
 		RefUpdate u = src.updateRef(Constants.HEAD, true);
@@ -209,6 +224,7 @@ public class HttpClientTests extends HttpTestCase {
 		assertEquals(Q, head.getObjectId());
 	}
 
+	@Test
 	public void testListRemote_Dumb_NoHEAD() throws Exception {
 		FileRepository src = remoteRepository.getRepository();
 		File headref = new File(src.getDirectory(), Constants.HEAD);
@@ -231,6 +247,7 @@ public class HttpClientTests extends HttpTestCase {
 		assertNull("has no " + Constants.HEAD, head);
 	}
 
+	@Test
 	public void testListRemote_Smart_DetachedHEAD() throws Exception {
 		Repository src = remoteRepository.getRepository();
 		RefUpdate u = src.updateRef(Constants.HEAD, true);
@@ -255,6 +272,7 @@ public class HttpClientTests extends HttpTestCase {
 		assertEquals(Q, head.getObjectId());
 	}
 
+	@Test
 	public void testListRemote_Smart_WithQueryParameters() throws Exception {
 		URIish myURI = toURIish("/snone/do?r=1&p=test.git");
 		Repository dst = createBareRepository();
@@ -283,6 +301,7 @@ public class HttpClientTests extends HttpTestCase {
 		assertEquals(404, info.getStatus());
 	}
 
+	@Test
 	public void testListRemote_Dumb_NeedsAuth() throws Exception {
 		Repository dst = createBareRepository();
 		Transport t = Transport.open(dst, dumbAuthBasicURI);
@@ -300,7 +319,8 @@ public class HttpClientTests extends HttpTestCase {
 		}
 	}
 
-	public void testListRemote_Dumb_Auth() throws Exception {
+	@Test
+	public void testListRemote_Dumb_BasicAuth() throws Exception {
 		Repository dst = createBareRepository();
 		Transport t = Transport.open(dst, dumbAuthBasicURI);
 		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
@@ -325,6 +345,60 @@ public class HttpClientTests extends HttpTestCase {
 		}
 	}
 
+	@Test
+	public void testListRemote_Dumb_ClientCertAuth() throws Exception {
+		Repository dst = createBareRepository();
+		StoredConfig config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", true);
+		config.setString("http", null, "sslCAInfo", "C:\\tmp\\client.jks");
+		config.setString("http", null, "sslCAInfoType", "JKS");
+		config.setString("http", null, "sslCAInfoPassword", "client");
+		config.setString("http", null, "sslCert", "C:\\tmp\\client.jks");
+		config.setString("http", null, "sslCertType", "JKS");
+		config.setString("http", null, "sslCertPassword", "client");
+		config.save();
+		Transport t = Transport.open(dst, dumbAuthClientCertURI);
+		try {
+			FetchConnection c = t.openFetch();
+			try {
+				Ref head = c.getRef(Constants.HEAD);
+				assertNotNull(head);
+				assertTrue(head
+						.getObjectId()
+						.equals(ObjectId
+								.fromString("c58a4bec12cbf30cc1894f5ce8cf604bd6bad596")));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+
+		config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", false);
+		config.setString("http", null, "sslCert", "C:\\tmp\\client.jks");
+		config.setString("http", null, "sslCertType", "JKS");
+		config.setString("http", null, "sslCertPassword", "client");
+		config.save();
+		t = Transport.open(dst, dumbAuthClientCertURI);
+		try {
+			FetchConnection c = t.openFetch();
+			try {
+				Ref head = c.getRef(Constants.HEAD);
+				assertNotNull(head);
+				assertTrue(head
+						.getObjectId()
+						.equals(ObjectId
+								.fromString("c58a4bec12cbf30cc1894f5ce8cf604bd6bad596")));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+	}
+
+	@Test
 	public void testListRemote_Smart_UploadPackNeedsAuth() throws Exception {
 		Repository dst = createBareRepository();
 		Transport t = Transport.open(dst, smartAuthBasicURI);
@@ -342,6 +416,7 @@ public class HttpClientTests extends HttpTestCase {
 		}
 	}
 
+	@Test
 	public void testListRemote_Smart_UploadPackDisabled() throws Exception {
 		FileRepository src = remoteRepository.getRepository();
 		final FileBasedConfig cfg = src.getConfig();
