@@ -383,9 +383,10 @@ public class HttpClientTests extends HttpTestCase {
 		config.setBoolean("http", null, "sslVerify", true);
 		config.setString("http", null, "sslCAInfo", pathToSslCAInfo);
 		config.setString("http", null, "sslKey", pathToSslKey);
-		config.setString("http", null, "sslKeyPassword", sslKeyPassword);
 		config.save();
 		Transport t = Transport.open(dst, dumbAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, "client"));
 		try {
 			FetchConnection c = t.openFetch();
 			try {
@@ -408,6 +409,8 @@ public class HttpClientTests extends HttpTestCase {
 		config.setString("http", null, "sslKeyPassword", sslKeyPassword);
 		config.save();
 		t = Transport.open(dst, dumbAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, "client"));
 		try {
 			FetchConnection c = t.openFetch();
 			try {

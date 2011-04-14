@@ -116,6 +116,7 @@ import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.SymbolicRef;
 import org.eclipse.jgit.storage.file.RefDirectory;
+import org.eclipse.jgit.transport.CredentialItem.CertPassword;
 import org.eclipse.jgit.util.HttpSupport;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.RawParseUtils;
@@ -237,14 +238,11 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		final String sslKey;
 
-		final String sslKeyPassword;
-
 		HttpConfig(final Config rc) {
 			postBuffer = rc.getInt("http", "postbuffer", 1 * 1024 * 1024); //$NON-NLS-1$  //$NON-NLS-2$
 			sslVerify = rc.getBoolean("http", "sslVerify", true);
 			sslCAInfo = rc.getString("http", null, "sslCAInfo");
 			sslKey = rc.getString("http", null, "sslKey");
-			sslKeyPassword = rc.getString("http", null, "sslKeyPassword");
 		}
 	}
 
@@ -497,11 +495,16 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpURLConnection conn = (HttpURLConnection) u.openConnection(proxy);
 
+		CertPassword certPasswordItem = new CertPassword(http.sslKey);
+		CredentialsProvider credentialsProvider = getCredentialsProvider();
+		if (credentialsProvider != null)
+			credentialsProvider.get(new URIish(u), certPasswordItem);
+
 		if ("https".equals(u.getProtocol())) {
 			KeyManager[] keyManagers = null;
 			if (http.sslKey != null)
 				keyManagers = createKeyManagers(http.sslKey,
-						http.sslKeyPassword);
+						certPasswordItem.getValue());
 
 			TrustManager[] trustManagers = null;
 			if (http.sslCAInfo != null)
@@ -542,17 +545,16 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 	}
 
 	private static KeyManager[] createKeyManagers(final String path,
-			final String password) throws IOException {
+			final char[] password) throws IOException {
 		FileInputStream fis = null;
 		try {
 			fis = new FileInputStream(path);
 			KeyStore keyStore = KeyStore.getInstance("PKCS12");
-			keyStore.load(fis, password != null ? password.toCharArray() : null);
+			keyStore.load(fis, password);
 
 			KeyManagerFactory keyManagerFactory = KeyManagerFactory
 					.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-			keyManagerFactory.init(keyStore,
-					password != null ? password.toCharArray() : null);
+			keyManagerFactory.init(keyStore, password);
 			return keyManagerFactory.getKeyManagers();
 		} catch (KeyStoreException e) {
 			throw new IOException(e.getMessage());
