@@ -54,6 +54,7 @@ import static org.eclipse.jgit.util.HttpSupport.HDR_USER_AGENT;
 import static org.eclipse.jgit.util.HttpSupport.METHOD_GET;
 import static org.eclipse.jgit.util.HttpSupport.METHOD_POST;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
@@ -73,7 +74,9 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -232,25 +235,16 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		final String sslCAInfo;
 
-		final String sslCAInfoType;
+		final String sslKey;
 
-		final String sslCAInfoPassword;
-
-		final String sslCert;
-
-		final String sslCertType;
-
-		final String sslCertPassword;
+		final String sslKeyPassword;
 
 		HttpConfig(final Config rc) {
 			postBuffer = rc.getInt("http", "postbuffer", 1 * 1024 * 1024); //$NON-NLS-1$  //$NON-NLS-2$
 			sslVerify = rc.getBoolean("http", "sslVerify", true);
 			sslCAInfo = rc.getString("http", null, "sslCAInfo");
-			sslCAInfoType = rc.getString("http", null, "sslCAInfoType");
-			sslCAInfoPassword = rc.getString("http", null, "sslCAInfoPassword");
-			sslCert = rc.getString("http", null, "sslCert");
-			sslCertType = rc.getString("http", null, "sslCertType");
-			sslCertPassword = rc.getString("http", null, "sslCertPassword");
+			sslKey = rc.getString("http", null, "sslKey");
+			sslKeyPassword = rc.getString("http", null, "sslKeyPassword");
 		}
 	}
 
@@ -505,14 +499,13 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		if ("https".equals(u.getProtocol())) {
 			KeyManager[] keyManagers = null;
-			if (http.sslCert != null)
-				keyManagers = createKeyManagers(http.sslCert, http.sslCertType,
-						http.sslCertPassword);
+			if (http.sslKey != null)
+				keyManagers = createKeyManagers(http.sslKey,
+						http.sslKeyPassword);
 
 			TrustManager[] trustManagers = null;
 			if (http.sslCAInfo != null)
-				trustManagers = createTrustManagers(http.sslCAInfo,
-						http.sslCAInfoType, http.sslCAInfoPassword);
+				trustManagers = createTrustManagers(http.sslCAInfo);
 
 			configureSsl(conn, keyManagers, trustManagers, !http.sslVerify,
 					true /* TODO */);
@@ -549,13 +542,13 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 	}
 
 	private static KeyManager[] createKeyManagers(final String path,
-			final String type, final String password) throws IOException {
+			final String password) throws IOException {
+		FileInputStream fis = null;
 		try {
-			InputStream inputStream = new FileInputStream(path);
-			KeyStore keyStore = KeyStore.getInstance(type != null ? type
-					: KeyStore.getDefaultType());
-			keyStore.load(inputStream,
-					password != null ? password.toCharArray() : null);
+			fis = new FileInputStream(path);
+			KeyStore keyStore = KeyStore.getInstance("PKCS12");
+			keyStore.load(fis, password != null ? password.toCharArray() : null);
+
 			KeyManagerFactory keyManagerFactory = KeyManagerFactory
 					.getInstance(KeyManagerFactory.getDefaultAlgorithm());
 			keyManagerFactory.init(keyStore,
@@ -569,27 +562,40 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			throw new IOException(e.getMessage());
 		} catch (UnrecoverableKeyException e) {
 			throw new IOException(e.getMessage());
+		} finally {
+			if (fis != null)
+				fis.close();
 		}
 	}
 
-	private static TrustManager[] createTrustManagers(final String path,
-			final String type, final String password) throws IOException {
+	private static TrustManager[] createTrustManagers(final String path)
+			throws IOException {
+		FileInputStream fis = null;
 		try {
-			InputStream inputStream = new FileInputStream(path);
-			KeyStore trustStore = KeyStore.getInstance(type != null ? type
-					: KeyStore.getDefaultType());
-			trustStore.load(inputStream,
-					password != null ? password.toCharArray() : null);
+			fis = new FileInputStream(path);
+			BufferedInputStream bis = new BufferedInputStream(fis);
+			CertificateFactory cf = CertificateFactory.getInstance("X.509");
+			Certificate cert = null;
+			while (bis.available() > 0)
+				cert = cf.generateCertificate(bis);
+
+			KeyStore trustStore = KeyStore.getInstance("JKS");
+			trustStore.load(null, null);
+			trustStore.setCertificateEntry("trustedCA", cert);
+
 			TrustManagerFactory trustManagerFactory = TrustManagerFactory
 					.getInstance(TrustManagerFactory.getDefaultAlgorithm());
 			trustManagerFactory.init(trustStore);
 			return trustManagerFactory.getTrustManagers();
+		} catch (CertificateException e) {
+			throw new IOException(e.getMessage());
 		} catch (KeyStoreException e) {
 			throw new IOException(e.getMessage());
 		} catch (NoSuchAlgorithmException e) {
 			throw new IOException(e.getMessage());
-		} catch (CertificateException e) {
-			throw new IOException(e.getMessage());
+		} finally {
+			if (fis != null)
+				fis.close();
 		}
 	}
 

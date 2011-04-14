@@ -149,23 +149,18 @@ public class AppServer {
 	 *
 	 * @param ksPath
 	 *            full path of the key store (and trust store)
-	 * @param ksType
-	 *            type of the key store (and trust store)
 	 * @param ksPassword
 	 *            password to access the key store (and trust store)
 	 */
-	public void addSslConnector(final String ksPath, final String ksType,
-			final String ksPassword) {
+	public void addSslConnector(final String ksPath, final String ksPassword) {
 		assertNotYetSetUp();
 		sslConnector = new SslSelectChannelConnector();
 		sslConnector.setHost(connector.getHost());
 		sslConnector.setPort(8443);
 		sslConnector.setKeystore(ksPath);
-		sslConnector.setKeystoreType(ksType);
 		sslConnector.setPassword(ksPassword);
 		sslConnector.setKeyPassword(ksPassword);
 		sslConnector.setTruststore(ksPath);
-		sslConnector.setTruststoreType(ksType);
 		sslConnector.setTrustPassword(ksPassword);
 		sslConnector.setWantClientAuth(false);
 		sslConnector.setNeedClientAuth(true);

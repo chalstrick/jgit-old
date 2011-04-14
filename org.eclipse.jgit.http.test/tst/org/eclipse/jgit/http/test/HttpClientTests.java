@@ -68,6 +68,7 @@ import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.http.AccessEvent;
 import org.eclipse.jgit.junit.http.AppServer;
 import org.eclipse.jgit.junit.http.HttpTestCase;
+import org.eclipse.jgit.junit.http.KeyStoreHelper;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -83,7 +84,9 @@ import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class HttpClientTests extends HttpTestCase {
@@ -99,11 +102,39 @@ public class HttpClientTests extends HttpTestCase {
 
 	private URIish smartAuthBasicURI;
 
+	private static String pathToServerKeyStore = null;
+
+	private static String serverKeyStorePassword = null;
+
+	private static String pathToSslCAInfo = null;
+
+	private static String pathToSslKey = null;
+
+	private static String sslKeyPassword = null;
+
+	@BeforeClass
+	public static void setUpClass() throws Exception {
+		// Create the keys, certificates etc.
+		pathToServerKeyStore = KeyStoreHelper.pathToServerKeyStore();
+		serverKeyStorePassword = KeyStoreHelper.serverKeyStorePassword();
+
+		pathToSslCAInfo = KeyStoreHelper.pathToSslCAInfo();
+		pathToSslKey = KeyStoreHelper.pathToSslKeyPKCS12();
+		sslKeyPassword = KeyStoreHelper.sslKeyPassword();
+	}
+
+	@AfterClass
+	public static void tearDownClass() throws Exception {
+		// Remove the keys, certificates etc.
+		KeyStoreHelper.cleanUp();
+	}
+
 	@Before
 	public void setUp() throws Exception {
 		super.setUp();
 
-		server.addSslConnector("C:\\tmp\\server.jks", "JKS", "server");
+		// We need an SSL connection
+		server.addSslConnector(pathToServerKeyStore, serverKeyStorePassword);
 
 		remoteRepository = createTestRepository();
 		remoteRepository.update(master, remoteRepository.commit().create());
@@ -350,12 +381,9 @@ public class HttpClientTests extends HttpTestCase {
 		Repository dst = createBareRepository();
 		StoredConfig config = dst.getConfig();
 		config.setBoolean("http", null, "sslVerify", true);
-		config.setString("http", null, "sslCAInfo", "C:\\tmp\\client.jks");
-		config.setString("http", null, "sslCAInfoType", "JKS");
-		config.setString("http", null, "sslCAInfoPassword", "client");
-		config.setString("http", null, "sslCert", "C:\\tmp\\client.jks");
-		config.setString("http", null, "sslCertType", "JKS");
-		config.setString("http", null, "sslCertPassword", "client");
+		config.setString("http", null, "sslCAInfo", pathToSslCAInfo);
+		config.setString("http", null, "sslKey", pathToSslKey);
+		config.setString("http", null, "sslKeyPassword", sslKeyPassword);
 		config.save();
 		Transport t = Transport.open(dst, dumbAuthClientCertURI);
 		try {
@@ -376,9 +404,8 @@ public class HttpClientTests extends HttpTestCase {
 
 		config = dst.getConfig();
 		config.setBoolean("http", null, "sslVerify", false);
-		config.setString("http", null, "sslCert", "C:\\tmp\\client.jks");
-		config.setString("http", null, "sslCertType", "JKS");
-		config.setString("http", null, "sslCertPassword", "client");
+		config.setString("http", null, "sslKey", pathToSslKey);
+		config.setString("http", null, "sslKeyPassword", sslKeyPassword);
 		config.save();
 		t = Transport.open(dst, dumbAuthClientCertURI);
 		try {
