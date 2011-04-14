@@ -495,12 +495,12 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpURLConnection conn = (HttpURLConnection) u.openConnection(proxy);
 
-		CertPassword certPasswordItem = new CertPassword(http.sslKey);
-		CredentialsProvider credentialsProvider = getCredentialsProvider();
-		if (credentialsProvider != null)
-			credentialsProvider.get(new URIish(u), certPasswordItem);
-
 		if ("https".equals(u.getProtocol())) {
+			CertPassword certPasswordItem = new CertPassword(http.sslKey);
+			CredentialsProvider credentialsProvider = getCredentialsProvider();
+			if (credentialsProvider != null)
+				credentialsProvider.get(new URIish(u), certPasswordItem);
+
 			KeyManager[] keyManagers = null;
 			if (http.sslKey != null)
 				keyManagers = createKeyManagers(http.sslKey,
