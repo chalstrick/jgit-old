@@ -53,6 +53,7 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -79,6 +80,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepository;
 import org.eclipse.jgit.transport.FetchConnection;
+import org.eclipse.jgit.transport.PushConnection;
 import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
@@ -101,6 +103,8 @@ public class HttpClientTests extends HttpTestCase {
 	private URIish smartAuthNoneURI;
 
 	private URIish smartAuthBasicURI;
+
+	private URIish smartAuthClientCertURI;
 
 	private static String pathToServerKeyStore = null;
 
@@ -146,6 +150,8 @@ public class HttpClientTests extends HttpTestCase {
 
 		ServletContextHandler sNone = smart("/snone");
 		ServletContextHandler sBasic = server.authBasic(smart("/sbasic"));
+		ServletContextHandler sClientCert = server
+				.authClientCert(smart("/sclientcert"));
 
 		server.setUp();
 
@@ -156,6 +162,7 @@ public class HttpClientTests extends HttpTestCase {
 
 		smartAuthNoneURI = toURIish(sNone, srcName);
 		smartAuthBasicURI = toURIish(sBasic, srcName);
+		smartAuthClientCertURI = toURIish(sClientCert, srcName);
 	}
 
 	private ServletContextHandler dumb(final String path) {
@@ -420,6 +427,51 @@ public class HttpClientTests extends HttpTestCase {
 						.getObjectId()
 						.equals(ObjectId
 								.fromString("c58a4bec12cbf30cc1894f5ce8cf604bd6bad596")));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+	}
+
+	@Test
+	public void testListRemote_Smart_PushWithClientCertAuth() throws Exception {
+		Repository dst = createBareRepository();
+		StoredConfig config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", true);
+		config.setString("http", null, "sslCAInfo", pathToSslCAInfo);
+		config.setString("http", null, "sslKey", pathToSslKey);
+		config.save();
+		Transport t = Transport.open(dst, smartAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, sslKeyPassword));
+		try {
+			PushConnection c = t.openPush();
+			try {
+				Map<String, Ref> refs = c.getRefsMap();
+				assertNotNull(refs);
+				assertTrue(refs.containsKey("refs/heads/master"));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+
+		config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", false);
+		config.setString("http", null, "sslKey", pathToSslKey);
+		config.save();
+		t = Transport.open(dst, smartAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, sslKeyPassword));
+		try {
+			PushConnection c = t.openPush();
+			try {
+				Map<String, Ref> refs = c.getRefsMap();
+				assertNotNull(refs);
+				assertTrue(refs.containsKey("refs/heads/master"));
 			} finally {
 				c.close();
 			}
