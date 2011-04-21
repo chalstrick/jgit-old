@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.eclipse.jetty.security.authentication.ClientCertAuthenticator;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jgit.junit.LocalDiskRepositoryTestCase;
 import org.eclipse.jgit.junit.TestRepository;
@@ -90,7 +91,13 @@ public abstract class HttpTestCase extends LocalDiskRepositoryTestCase {
 	}
 
 	protected URIish toURIish(String path) throws URISyntaxException {
-		URI u = server.getURI().resolve(path);
+		URI u = server.getURI(false).resolve(path);
+		return new URIish(u.toString());
+	}
+
+	protected URIish toURIish(String path, boolean ssl)
+			throws URISyntaxException {
+		URI u = server.getURI(ssl).resolve(path);
 		return new URIish(u.toString());
 	}
 
@@ -100,7 +107,10 @@ public abstract class HttpTestCase extends LocalDiskRepositoryTestCase {
 		if (!p.endsWith("/") && !name.startsWith("/"))
 			p += "/";
 		p += name;
-		return toURIish(p);
+		boolean ssl = app.getSecurityHandler() != null
+				&& app.getSecurityHandler().getAuthenticator() != null
+				&& app.getSecurityHandler().getAuthenticator() instanceof ClientCertAuthenticator;
+		return toURIish(p, ssl);
 	}
 
 	protected List<AccessEvent> getRequests() {

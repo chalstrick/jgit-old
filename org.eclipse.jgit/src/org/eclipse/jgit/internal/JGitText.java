@@ -144,6 +144,9 @@ public class JGitText extends TranslationBundle {
 	/***/ public String canOnlyRevertCommitsWithOneParent;
 	/***/ public String cantFindObjectInReversePackIndexForTheSpecifiedOffset;
 	/***/ public String cantPassMeATree;
+	/***/ public String caInfoDoesNotExist;
+	/***/ public String caPathDoesNotExist;
+	/***/ public String certFileDoesNotExist;
 	/***/ public String channelMustBeInRange0_255;
 	/***/ public String characterClassIsNotSupported;
 	/***/ public String checkoutConflictWithFile;
@@ -201,6 +204,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String createBranchFailedUnknownReason;
 	/***/ public String createBranchUnexpectedResult;
 	/***/ public String createNewFileFailed;
+	/***/ public String credentialCertPassword;
 	/***/ public String credentialPassword;
 	/***/ public String credentialUsername;
 	/***/ public String daemonAlreadyRunning;
@@ -281,6 +285,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String flagIsDisposed;
 	/***/ public String flagNotFromThis;
 	/***/ public String flagsAlreadyCreated;
+	/***/ public String folderDoesNotExist;
 	/***/ public String funnyRefname;
 	/***/ public String gcFailed;
 	/***/ public String gitmodulesNotFound;
@@ -340,6 +345,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String invalidWindowSize;
 	/***/ public String isAStaticFlagAndHasNorevWalkInstance;
 	/***/ public String JRELacksMD5Implementation;
+	/***/ public String keyFileDoesNotExist;
 	/***/ public String kNotInRange;
 	/***/ public String largeObjectExceedsByteArray;
 	/***/ public String largeObjectExceedsLimit;

@@ -51,8 +51,12 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.net.URI;
+import java.security.KeyStore;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -64,23 +68,29 @@ import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.junit.JGitTestUtil;
+import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.http.AccessEvent;
 import org.eclipse.jgit.junit.http.AppServer;
 import org.eclipse.jgit.junit.http.HttpTestCase;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.FetchConnection;
+import org.eclipse.jgit.transport.PushConnection;
 import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class HttpClientTests extends HttpTestCase {
@@ -90,31 +100,102 @@ public class HttpClientTests extends HttpTestCase {
 
 	private URIish dumbAuthBasicURI;
 
+	private URIish dumbAuthClientCertURI;
+
 	private URIish smartAuthNoneURI;
 
 	private URIish smartAuthBasicURI;
 
+	private URIish smartAuthClientCertURI;
+
+	private static KeyStore keyStore = null;
+
+	private static File ksFile = null;
+
+	private static Map<String, File> resouceFiles = new HashMap<String, File>();
+
+	final static String[] certFiles = { "bad_certificate_selfSigned.pem",
+			"bad_certificate_signedByCA.pem", "ca_certificate_selfSigned.pem",
+			"client_certificate_selfSigned.pem",
+			"client_certificate_signedByBad.pem",
+			"client_certificate_signedByCA.pem",
+			"server_certificate_signedByCA.pem" };
+
+	final static String[] keyFiles = {
+			"bad_privateKey_rsa_nopwd_traditional.der",
+			"ca_privateKey_rsa_nopwd_traditional.der",
+			"client_privateKey_rsa_nopwd_pkcs8.der",
+			"client_privateKey_rsa_nopwd_pkcs8.pem",
+			"client_privateKey_rsa_nopwd_traditional.der",
+			"client_privateKey_rsa_nopwd_traditional.pem",
+			"client_privateKey_rsa_pwdclient_pkcs8.der",
+			"client_privateKey_rsa_pwdclient_pkcs8.pem",
+			"client_privateKey_rsa_pwdclient_traditional.der",
+			"client_privateKey_rsa_pwdclient_traditional.pem",
+			"server_privateKey_rsa_nopwd_traditional.der" };
+
+	@BeforeClass
+	public static void setUpClass() throws Exception {
+		for (String n : certFiles) {
+			int lastDot = n.lastIndexOf('.');
+			File f = File.createTempFile(n.substring(0, lastDot), n.substring(lastDot+1));
+			RepositoryTestCase.copyFile(JGitTestUtil.getTestResourceFile(n), f);
+			resouceFiles.put(n, f);
+		}
+		for (String n : keyFiles) {
+			int lastDot = n.lastIndexOf('.');
+			File f = File.createTempFile(n.substring(0, lastDot),
+					n.substring(lastDot + 1));
+			RepositoryTestCase.copyFile(JGitTestUtil.getTestResourceFile(n), f);
+			resouceFiles.put(n, f);
+		}
+
+		keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+		keyStore.load(null, "serverKs".toCharArray());
+		ksFile = File.createTempFile("server", ".ks");
+		FileOutputStream fos = new FileOutputStream(ksFile);
+		try {
+			keyStore.store(fos, "serverKs".toCharArray());
+		} finally {
+			fos.close();
+		}
+	}
+
+	@After
+	public void tearDown() throws Exception {
+		server.tearDown();
+	}
+
 	@Before
 	public void setUp() throws Exception {
 		super.setUp();
+
+		// We need an SSL connection
+		server.addSslConnector(ksFile.getAbsolutePath(), "serverKs");
 
 		remoteRepository = createTestRepository();
 		remoteRepository.update(master, remoteRepository.commit().create());
 
 		ServletContextHandler dNone = dumb("/dnone");
 		ServletContextHandler dBasic = server.authBasic(dumb("/dbasic"));
+		ServletContextHandler dClientCert = server
+				.authClientCert(dumb("/dclientcert"));
 
 		ServletContextHandler sNone = smart("/snone");
 		ServletContextHandler sBasic = server.authBasic(smart("/sbasic"));
+		ServletContextHandler sClientCert = server
+				.authClientCert(smart("/sclientcert"));
 
 		server.setUp();
 
 		final String srcName = nameOf(remoteRepository.getRepository());
 		dumbAuthNoneURI = toURIish(dNone, srcName);
 		dumbAuthBasicURI = toURIish(dBasic, srcName);
+		dumbAuthClientCertURI = toURIish(dClientCert, srcName);
 
 		smartAuthNoneURI = toURIish(sNone, srcName);
 		smartAuthBasicURI = toURIish(sBasic, srcName);
+		smartAuthClientCertURI = toURIish(sClientCert, srcName);
 	}
 
 	private ServletContextHandler dumb(final String path) {
@@ -310,7 +391,7 @@ public class HttpClientTests extends HttpTestCase {
 	}
 
 	@Test
-	public void testListRemote_Dumb_Auth() throws Exception {
+	public void testListRemote_Dumb_BasicAuth() throws Exception {
 		Repository dst = createBareRepository();
 		Transport t = Transport.open(dst, dumbAuthBasicURI);
 		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
@@ -330,6 +411,114 @@ public class HttpClientTests extends HttpTestCase {
 			String exp = dumbAuthBasicURI + ": "
 					+ JGitText.get().notAuthorized;
 			assertEquals(exp, err.getMessage());
+		} finally {
+			t.close();
+		}
+	}
+
+	@Test
+	public void testListRemote_Dumb_ClientCertAuth() throws Exception {
+		Repository dst = createBareRepository();
+		StoredConfig config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", true);
+		config.setString("http", null, "sslCAInfo",
+				resouceFiles.get("client_certificate_signedByCa.pem")
+						.getAbsolutePath());
+		config.setString("http", null, "sslKey",
+				resouceFiles.get("client_privateKey_rsa_pwdclient_pkcs8.der")
+						.getAbsolutePath());
+		config.save();
+		Transport t = Transport.open(dst, dumbAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, "client"));
+		try {
+			FetchConnection c = t.openFetch();
+			try {
+				Ref head = c.getRef(Constants.HEAD);
+				assertNotNull(head);
+				assertTrue(head
+						.getObjectId()
+						.equals(ObjectId
+								.fromString("c58a4bec12cbf30cc1894f5ce8cf604bd6bad596")));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+
+		config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", false);
+		config.setString("http", null, "sslKey",
+				resouceFiles.get("client_privateKey_rsa_pwdclient_pkcs8.der")
+						.getAbsolutePath());
+		config.save();
+		t = Transport.open(dst, dumbAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, "client"));
+		try {
+			FetchConnection c = t.openFetch();
+			try {
+				Ref head = c.getRef(Constants.HEAD);
+				assertNotNull(head);
+				assertTrue(head
+						.getObjectId()
+						.equals(ObjectId
+								.fromString("c58a4bec12cbf30cc1894f5ce8cf604bd6bad596")));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+	}
+
+	@Test
+	public void testListRemote_Smart_PushWithClientCertAuth() throws Exception {
+		Repository dst = createBareRepository();
+		StoredConfig config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", true);
+		config.setString("http", null, "sslCAInfo",
+				resouceFiles.get("client_certificate_signedByCa.pem")
+						.getAbsolutePath());
+		config.setString("http", null, "sslKey",
+				resouceFiles.get("client_privateKey_rsa_pwdclient_pkcs8.der")
+						.getAbsolutePath());
+		config.save();
+		Transport t = Transport.open(dst, smartAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, "client"));
+		try {
+			PushConnection c = t.openPush();
+			try {
+				Map<String, Ref> refs = c.getRefsMap();
+				assertNotNull(refs);
+				assertTrue(refs.containsKey("refs/heads/master"));
+			} finally {
+				c.close();
+			}
+		} finally {
+			t.close();
+		}
+
+		config = dst.getConfig();
+		config.setBoolean("http", null, "sslVerify", false);
+		config.setString("http", null, "sslKey",
+				resouceFiles.get("client_privateKey_rsa_pwdclient_pkcs8.der")
+						.getAbsolutePath());
+		config.save();
+		t = Transport.open(dst, smartAuthClientCertURI);
+		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				AppServer.username, AppServer.password, "client"));
+		try {
+			PushConnection c = t.openPush();
+			try {
+				Map<String, Ref> refs = c.getRefsMap();
+				assertNotNull(refs);
+				assertTrue(refs.containsKey("refs/heads/master"));
+			} finally {
+				c.close();
+			}
 		} finally {
 			t.close();
 		}

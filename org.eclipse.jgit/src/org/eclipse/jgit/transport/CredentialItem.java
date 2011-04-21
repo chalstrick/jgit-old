@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.transport;
 
+import java.text.MessageFormat;
 import java.util.Arrays;
 
 import org.eclipse.jgit.internal.JGitText;
@@ -288,6 +289,23 @@ public abstract class CredentialItem {
 		 */
 		public Password(String msg) {
 			super(msg, true);
+		}
+	}
+
+	/**
+	 * Prompt for a password for the client certificate or private key during
+	 * https transports. The password is masked on input.
+	 */
+	public static class CertPassword extends CharArrayType {
+
+		/**
+		 * @param path
+		 *            the path of the file containing the certificate and/or
+		 *            private key
+		 */
+		public CertPassword(String path) {
+			super(MessageFormat.format(JGitText.get().credentialCertPassword,
+					path), true);
 		}
 	}
 }

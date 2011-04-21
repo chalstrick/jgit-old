@@ -85,7 +85,7 @@ import org.junit.Before;
  * repositories and destroying them when the tests are finished.
  */
 public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
-	protected static void copyFile(final File src, final File dst)
+	public static void copyFile(final File src, final File dst)
 			throws IOException {
 		final FileInputStream fis = new FileInputStream(src);
 		try {

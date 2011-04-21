@@ -57,6 +57,7 @@ import static org.eclipse.jgit.util.HttpSupport.METHOD_POST;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,6 +69,7 @@ import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
@@ -86,6 +88,7 @@ import java.util.zip.GZIPOutputStream;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
@@ -106,6 +109,8 @@ import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.SymbolicRef;
+import org.eclipse.jgit.transport.CredentialItem.CertPassword;
+import org.eclipse.jgit.util.CryptoUtil;
 import org.eclipse.jgit.util.HttpSupport;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.RawParseUtils;
@@ -227,9 +232,21 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		final boolean sslVerify;
 
+		final String sslCAInfo;
+
+		final String sslCAPath;
+
+		final String sslKey;
+
+		final String sslCert;
+
 		HttpConfig(final Config rc) {
 			postBuffer = rc.getInt("http", "postbuffer", 1 * 1024 * 1024); //$NON-NLS-1$  //$NON-NLS-2$
 			sslVerify = rc.getBoolean("http", "sslVerify", true); //$NON-NLS-1$ //$NON-NLS-2$
+			sslCAInfo = rc.getString("http", null, "sslCAInfo");
+			sslCAPath = rc.getString("http", null, "sslCAPath");
+			sslKey = rc.getString("http", null, "sslKey");
+			sslCert = rc.getString("http", null, "sslCert");
 		}
 
 		private HttpConfig() {
@@ -508,8 +525,59 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpURLConnection conn = (HttpURLConnection) u.openConnection(proxy);
 
-		if (!http.sslVerify && "https".equals(u.getProtocol())) { //$NON-NLS-1$
-			disableSslVerify(conn);
+		if ("https".equals(u.getProtocol())) {  //$NON-NLS-1$
+			KeyManager[] keyManagers = null;
+			if (http.sslKey != null || http.sslCert != null) {
+				File sslKeyFile = getFile(http.sslKey, true,
+						JGitText.get().keyFileDoesNotExist);
+				File sslCertFile = getFile(http.sslKey, true,
+						JGitText.get().certFileDoesNotExist);
+				try {
+					// first try to read the keys without password. If this
+					// fails, try again and ask for a password
+					keyManagers = CryptoUtil.createKeyManagers(sslKeyFile,
+							sslCertFile,
+							null);
+				} catch (Exception e) {
+					CertPassword certPasswordItem = new CertPassword(
+							http.sslKey);
+					CredentialsProvider credentialsProvider = getCredentialsProvider();
+					if (credentialsProvider != null)
+						credentialsProvider
+								.get(new URIish(u), certPasswordItem);
+					try {
+						keyManagers = CryptoUtil.createKeyManagers(sslKeyFile,
+								sslCertFile, certPasswordItem.getValue());
+					} catch (GeneralSecurityException gse) {
+						IOException ioe = new IOException();
+						ioe.initCause(gse);
+						throw ioe;
+					}
+				}
+			}
+
+			TrustManager[] trustManagers = null;
+			if (http.sslCAInfo != null || http.sslCAPath != null) {
+				File sslCAInfoFile=null;
+				if (http.sslCAInfo != null) {
+					sslCAInfoFile = getFile(http.sslCAInfo, true, JGitText.get().caInfoDoesNotExist);
+				}
+				File sslCAPathFile=null;
+				if (http.sslCAPath != null) {
+					sslCAPathFile = getFile(http.sslCAPath, true, JGitText.get().caPathDoesNotExist);
+				}
+				try {
+					trustManagers = CryptoUtil.createTrustManagers(
+							sslCAInfoFile, sslCAPathFile);
+				} catch (GeneralSecurityException gse) {
+					IOException ioe = new IOException();
+					ioe.initCause(gse);
+					throw ioe;
+				}
+			}
+
+			configureSsl(conn, keyManagers, trustManagers, !http.sslVerify,
+					true /* TODO */);
 		}
 
 		conn.setRequestMethod(method);
@@ -527,15 +595,29 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		return conn;
 	}
 
-	private void disableSslVerify(URLConnection conn)
-			throws IOException {
-		final TrustManager[] trustAllCerts = new TrustManager[] { new DummyX509TrustManager() };
+	private File getFile(String path, boolean hasToBeFile,
+			String exceptionFormat) throws IOException {
+		if (path == null)
+			throw new IOException(MessageFormat.format(exceptionFormat,
+					"<undefined>")); //$NON-NLS-1$
+		File f = new File(path);
+		if (!(f.exists() && f.isFile() == hasToBeFile))
+			throw new IOException(MessageFormat.format(exceptionFormat, path));
+		return f;
+	}
+
+	private void configureSsl(URLConnection conn,
+			final KeyManager[] keyManagers, final TrustManager[] trustManagers,
+			boolean trustAllCerts, boolean trustAllHosts) throws IOException {
+		final TrustManager[] dummyTrustManagers = new TrustManager[] { new DummyX509TrustManager() };
 		try {
 			SSLContext ctx = SSLContext.getInstance("SSL"); //$NON-NLS-1$
-			ctx.init(null, trustAllCerts, null);
+			ctx.init(keyManagers, trustAllCerts ? dummyTrustManagers
+					: trustManagers, null);
 			final HttpsURLConnection sslConn = (HttpsURLConnection) conn;
 			sslConn.setSSLSocketFactory(ctx.getSocketFactory());
-			sslConn.setHostnameVerifier(new DummyHostnameVerifier());
+			if (trustAllHosts)
+				sslConn.setHostnameVerifier(new DummyHostnameVerifier());
 		} catch (KeyManagementException e) {
 			throw new IOException(e.getMessage());
 		} catch (NoSuchAlgorithmException e) {
@@ -987,7 +1069,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 	private static class DummyHostnameVerifier implements HostnameVerifier {
 		public boolean verify(String hostname, SSLSession session) {
-			// always accept
+			// no check
 			return true;
 		}
 	}
