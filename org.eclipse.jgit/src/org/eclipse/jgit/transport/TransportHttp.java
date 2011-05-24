@@ -54,11 +54,9 @@ import static org.eclipse.jgit.util.HttpSupport.HDR_USER_AGENT;
 import static org.eclipse.jgit.util.HttpSupport.METHOD_GET;
 import static org.eclipse.jgit.util.HttpSupport.METHOD_POST;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,14 +68,10 @@ import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -85,6 +79,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -242,12 +237,15 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		final String sslKey;
 
+		final String sslCert;
+
 		HttpConfig(final Config rc) {
 			postBuffer = rc.getInt("http", "postbuffer", 1 * 1024 * 1024); //$NON-NLS-1$  //$NON-NLS-2$
 			sslVerify = rc.getBoolean("http", "sslVerify", true);
 			sslCAInfo = rc.getString("http", null, "sslCAInfo");
 			sslCAPath = rc.getString("http", null, "sslCAPath");
 			sslKey = rc.getString("http", null, "sslKey");
+			sslCert = rc.getString("http", null, "sslCert");
 		}
 	}
 
@@ -508,7 +506,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 				CredentialsProvider credentialsProvider = getCredentialsProvider();
 				if (credentialsProvider != null)
 					credentialsProvider.get(new URIish(u), certPasswordItem);
-				keyManagers = createKeyManagers(http.sslKey,
+				keyManagers = createKeyManagers(http.sslCert, http.sslKey,
 						certPasswordItem.getValue());
 			}
 
@@ -557,81 +555,48 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 	}
 
-	private static KeyManager[] createKeyManagers(final String path,
+	private static KeyManager[] createKeyManagers(final String certPath,
+			final String keyPath,
 			final char[] password) throws IOException {
-		FileInputStream fis = new FileInputStream(path);
 		try {
-			KeyStore keyStore = KeyStore.getInstance("PKCS12");
-			keyStore.load(fis, password);
+			KeyStoreBuilder ksb = new KeyStoreBuilder();
+			ksb.importX509Certs(certPath);
+			ksb.importPKCS12(keyPath, password);
 
 			KeyManagerFactory keyManagerFactory = KeyManagerFactory
 					.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-			keyManagerFactory.init(keyStore, password);
-			return keyManagerFactory.getKeyManagers();
-		} catch (KeyStoreException e) {
-			IOException ioException = new IOException(e.getMessage());
-			ioException.initCause(e);
-			throw ioException;
-		} catch (NoSuchAlgorithmException e) {
-			IOException ioException = new IOException(e.getMessage());
-			ioException.initCause(e);
-			throw ioException;
-		} catch (CertificateException e) {
-			IOException ioException = new IOException(e.getMessage());
-			ioException.initCause(e);
-			throw ioException;
-		} catch (UnrecoverableKeyException e) {
-			IOException ioException = new IOException(e.getMessage());
-			ioException.initCause(e);
-			throw ioException;
-		} finally {
-			fis.close();
-		}
-	}
 
-	private static List<Certificate> readCerts(String path) throws IOException {
-		List<Certificate> certs = new ArrayList<Certificate>();
-		FileInputStream fis = new FileInputStream(path);
-		try {
-			BufferedInputStream bis = new BufferedInputStream(fis);
-			CertificateFactory cf = CertificateFactory.getInstance("X.509");
-			while (bis.available() > 0)
-				certs.add(cf.generateCertificate(bis));
-			return (certs);
-		} catch (CertificateException e) {
+			// TODO: remove println
+			System.out.println("create KeyManagers: certPath:"+certPath+", keyPath:"+keyPath);
+			dumpKeyStore(ksb.getKeyStore(), password);
+
+			keyManagerFactory.init(ksb.getKeyStore(), password);
+
+			return keyManagerFactory.getKeyManagers();
+		} catch (GeneralSecurityException e) {
 			IOException ioException = new IOException(e.getMessage());
 			ioException.initCause(e);
 			throw ioException;
-		} finally {
-			fis.close();
 		}
 	}
 
 	private static TrustManager[] createTrustManagers(final List<String> paths)
 			throws IOException {
 		try {
-		KeyStore trustStore = KeyStore.getInstance("JKS");
-		trustStore.load(null, null);
+			KeyStoreBuilder ksb = new KeyStoreBuilder();
+			for (String path : paths)
+				ksb.importX509Certs(path);
 
-		int i=0;
-		for (String path : paths)
-			for (Certificate cert : readCerts(path))
-				trustStore.setCertificateEntry("trustedCA"+(i++), cert);
+			TrustManagerFactory trustManagerFactory = TrustManagerFactory
+					.getInstance(TrustManagerFactory.getDefaultAlgorithm());
 
-		TrustManagerFactory trustManagerFactory = TrustManagerFactory
-				.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-		trustManagerFactory.init(trustStore);
-		return trustManagerFactory.getTrustManagers();
+			System.out.println("create trustmanagers: paths:" + paths);
+			dumpKeyStore(ksb.getKeyStore(), null);
 
-		} catch (CertificateException e) {
-			IOException ioException = new IOException(e.getMessage());
-			ioException.initCause(e);
-			throw ioException;
-		} catch (KeyStoreException e) {
-			IOException ioException = new IOException(e.getMessage());
-			ioException.initCause(e);
-			throw ioException;
-		} catch (NoSuchAlgorithmException e) {
+			trustManagerFactory.init(ksb.getKeyStore());
+			return trustManagerFactory.getTrustManagers();
+
+		} catch (GeneralSecurityException e) {
 			IOException ioException = new IOException(e.getMessage());
 			ioException.initCause(e);
 			throw ioException;
@@ -1024,6 +989,25 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		public boolean verify(String hostname, SSLSession session) {
 			// no check
 			return true;
+		}
+	}
+
+	/**
+	 * @param ks
+	 * @param passwd
+	 * @throws GeneralSecurityException
+	 */
+	public static void dumpKeyStore(KeyStore ks, char passwd[])
+			throws GeneralSecurityException {
+		System.out.println("Keystore of type " + ks.getType());
+		for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); ) {
+			String alias = aliases.nextElement();
+			if (ks.isCertificateEntry(alias))
+				System.out.println("  cert: " + alias + "->"
+						+ ks.getCertificateChain(alias));
+			else
+				System.out.println("  key: " + alias + "->"
+						+ ks.getKey(alias, passwd));
 		}
 	}
 }

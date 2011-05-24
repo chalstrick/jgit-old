@@ -52,6 +52,7 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.net.URI;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
@@ -65,11 +66,11 @@ import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.http.server.GitServlet;
+import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.http.AccessEvent;
 import org.eclipse.jgit.junit.http.AppServer;
 import org.eclipse.jgit.junit.http.HttpTestCase;
-import org.eclipse.jgit.junit.http.KeyStoreHelper;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -80,13 +81,13 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepository;
 import org.eclipse.jgit.transport.FetchConnection;
+import org.eclipse.jgit.transport.PasswordCredentialsProvider;
 import org.eclipse.jgit.transport.PushConnection;
 import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -119,18 +120,17 @@ public class HttpClientTests extends HttpTestCase {
 	@BeforeClass
 	public static void setUpClass() throws Exception {
 		// Create the keys, certificates etc.
-		pathToServerKeyStore = KeyStoreHelper.pathToServerKeyStore();
-		serverKeyStorePassword = KeyStoreHelper.serverKeyStorePassword();
 
-		pathToSslCAInfo = KeyStoreHelper.pathToSslCAInfo();
-		pathToSslKey = KeyStoreHelper.pathToSslKeyPKCS12();
-		sslKeyPassword = KeyStoreHelper.sslKeyPassword();
-	}
+		URL resource = JGitTestUtil.class.getClassLoader().getResource("certs/server.key.pem");
+		File f = new File(resource.toURI());
+		System.out.println("Current path: " + f.getAbsolutePath());
+		pathToServerKeyStore = (JGitTestUtil.
+				.getTestResourceFile("certs/server.key.pem")).f.getPath();
+		serverKeyStorePassword = "server";
 
-	@AfterClass
-	public static void tearDownClass() throws Exception {
-		// Remove the keys, certificates etc.
-		KeyStoreHelper.cleanUp();
+		pathToSslCAInfo = null;
+		pathToSslKey = null;
+		sslKeyPassword = null;
 	}
 
 	@Before
@@ -392,8 +392,8 @@ public class HttpClientTests extends HttpTestCase {
 		config.setString("http", null, "sslKey", pathToSslKey);
 		config.save();
 		Transport t = Transport.open(dst, dumbAuthClientCertURI);
-		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
-				AppServer.username, AppServer.password, "client"));
+		t.setCredentialsProvider(new PasswordCredentialsProvider("client"
+				.toCharArray()));
 		try {
 			FetchConnection c = t.openFetch();
 			try {
@@ -416,8 +416,8 @@ public class HttpClientTests extends HttpTestCase {
 		config.setString("http", null, "sslKeyPassword", sslKeyPassword);
 		config.save();
 		t = Transport.open(dst, dumbAuthClientCertURI);
-		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
-				AppServer.username, AppServer.password, "client"));
+		t.setCredentialsProvider(new PasswordCredentialsProvider("client"
+				.toCharArray()));
 		try {
 			FetchConnection c = t.openFetch();
 			try {
@@ -444,8 +444,8 @@ public class HttpClientTests extends HttpTestCase {
 		config.setString("http", null, "sslKey", pathToSslKey);
 		config.save();
 		Transport t = Transport.open(dst, smartAuthClientCertURI);
-		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
-				AppServer.username, AppServer.password, sslKeyPassword));
+		t.setCredentialsProvider(new PasswordCredentialsProvider("client"
+				.toCharArray()));
 		try {
 			PushConnection c = t.openPush();
 			try {
@@ -464,8 +464,8 @@ public class HttpClientTests extends HttpTestCase {
 		config.setString("http", null, "sslKey", pathToSslKey);
 		config.save();
 		t = Transport.open(dst, smartAuthClientCertURI);
-		t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
-				AppServer.username, AppServer.password, sslKeyPassword));
+		t.setCredentialsProvider(new PasswordCredentialsProvider("client"
+				.toCharArray()));
 		try {
 			PushConnection c = t.openPush();
 			try {

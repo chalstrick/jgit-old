@@ -40,59 +40,69 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 package org.eclipse.jgit.transport;
 
-import java.util.Arrays;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
-import org.eclipse.jgit.errors.UnsupportedCredentialItem;
-import org.eclipse.jgit.transport.CredentialItem.CertPassword;
-import org.eclipse.jgit.transport.CredentialItem.Password;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.security.Key;
+import java.security.KeyStore;
+import java.util.Enumeration;
 
-/**
- * Simple {@link CredentialsProvider} which will always return a static password
- */
-public class PasswordCredentialsProvider extends CredentialsProvider {
-	private char[] pwd;
+import java.security.cert.Certificate;
 
-	/**
-	 * @param pwd
-	 *            the password to be returned by this provider
-	 */
-	public PasswordCredentialsProvider(char[] pwd) {
-		this.pwd = pwd;
-	}
+import org.eclipse.jgit.junit.JGitTestUtil;
+import org.junit.Test;
 
-	@Override
-	public boolean isInteractive() {
-		return false;
-	}
+public class TestKeyStoreBuilder {
+	private static final char[] CA_CRT_PASSWD = "caCrtPasswd".toCharArray();
 
-	@Override
-	public boolean supports(CredentialItem... items) {
-		for (CredentialItem i : items)
-			if (!(i instanceof Password || i instanceof CertPassword))
-				return false;
-		return true;
-	}
-
-	@Override
-	public boolean get(URIish uri, CredentialItem... items)
-			throws UnsupportedCredentialItem {
-		for (CredentialItem i : items)
-			if (i instanceof Password)
-				((Password) i).setValue(pwd);
-			else if (i instanceof CertPassword)
-				((CertPassword) i).setValue(pwd);
-			else
-				throw new UnsupportedCredentialItem(uri, i.getPromptText());
-		return true;
-	}
-
-	/** Destroy the saved password.. */
-	public void clear() {
-		if (pwd != null) {
-			Arrays.fill(pwd, (char) 0);
-			pwd = null;
+	private String toString(KeyStore ks, char[] passwd)
+			throws GeneralSecurityException {
+		StringBuilder b = new StringBuilder();
+		for (Enumeration<String> aliases = ks.aliases(); aliases
+				.hasMoreElements();) {
+			String alias = aliases.nextElement();
+			b.append(alias);
+			b.append("->");
+			if (ks.isCertificateEntry(alias)) {
+				b.append("cert[");
+				for (Certificate c : ks.getCertificateChain(alias)) {
+					b.append(c.getPublicKey().toString());
+					b.append(", ");
+				}
+				b.append("]");
+			} else {
+				Key key = ks.getKey(alias, passwd);
+				b.append("key[");
+				b.append("algorithm:" + key.getAlgorithm() + ", ");
+				b.append("format:" + key.getFormat() + ", ");
+				b.append("key: ");
+				byte[] raw = key.getEncoded();
+				for (int i = 0; i < 5 && i < raw.length; i++) {
+					b.append(raw[i]);
+				}
+			}
 		}
+		return b.toString();
 	}
+
+	public void test() throws GeneralSecurityException, IOException {
+		KeyStore ks = new KeyStoreBuilder().getKeyStore();
+		assertFalse(ks.aliases().hasMoreElements());
+		assertEquals("", toString(ks, CA_CRT_PASSWD));
+	}
+
+	@Test
+	public void test2() throws GeneralSecurityException, IOException {
+		KeyStoreBuilder builder = new KeyStoreBuilder();
+		builder.importPKCS8(JGitTestUtil
+				.getTestResourceFile("certs/ca.crt.der").getAbsolutePath(),
+				CA_CRT_PASSWD);
+		assertEquals("", toString(builder.getKeyStore(), CA_CRT_PASSWD));
+	}
+
 }
