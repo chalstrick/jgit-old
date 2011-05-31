@@ -54,6 +54,7 @@ import org.eclipse.jgit.JGitText;
  * <ul>
  * <li>{@link Username} for usernames</li>
  * <li>{@link Password} for passwords</li>
+ * <li>{@link Passphrase} for passphrases</li>
  * <li>{@link StringType} for other general string information</li>
  * <li>{@link CharArrayType} for other general secret information</li>
  * </ul>
@@ -290,4 +291,23 @@ public abstract class CredentialItem {
 			super(msg, true);
 		}
 	}
+
+	/** Prompt for a passphrase, which is masked on input. */
+	public static class Passphrase extends CharArrayType {
+		/** Initialize a new passphrase item, with a default passphrase prompt. */
+		public Passphrase() {
+			super(JGitText.get().credentialPassphrase, true);
+		}
+
+		/**
+		 * Initialize a new password item, with given prompt.
+		 *
+		 * @param msg
+		 *            prompt message
+		 */
+		public Passphrase(String msg) {
+			super(msg, true);
+		}
+	}
+
 }
