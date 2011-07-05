@@ -916,6 +916,41 @@ public class MergeCommandTest extends RepositoryTestCase {
 				indexState, fileA);
 	}
 
+	@Test
+	public void testConflictingBinary() throws Exception {
+		Git git = new Git(db);
+
+		File fileA = writeTrashFile("a", "a");
+		File fileB = writeTrashFile("bin", "\u2345\u0000\u7654");
+		RevCommit initialCommit = addAllAndCommit(git);
+
+		// switch branch
+		createBranch(initialCommit, "refs/heads/side");
+		checkoutBranch("refs/heads/side");
+		write(fileA, "a(side)");
+		fileB = writeTrashFile("bin", "\u23aa\u0000\u7654");
+		RevCommit sideCommit = addAllAndCommit(git);
+
+		// switch branch
+		checkoutBranch("refs/heads/master");
+		write(fileA, "a(master)");
+		addAllAndCommit(git);
+
+		// modify file a
+		write(fileA, "a(modified)");
+		// do not add and commit
+
+		// get current index state
+		String indexState = indexState(CONTENT);
+
+		// merge
+		MergeResult result = git.merge().include(sideCommit.getId())
+				.setStrategy(MergeStrategy.RESOLVE).call();
+
+		checkMergeFailedResult(result, MergeFailureReason.DIRTY_WORKTREE,
+				indexState, fileA);
+	}
+
 	private RevCommit addAllAndCommit(final Git git) throws Exception {
 		git.add().addFilepattern(".").call();
 		return git.commit().setMessage("message").call();
