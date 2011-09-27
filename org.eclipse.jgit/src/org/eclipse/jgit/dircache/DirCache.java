@@ -504,6 +504,7 @@ public class DirCache {
 		final MessageDigest foot = Constants.newMessageDigest();
 		final DigestOutputStream dos = new DigestOutputStream(os, foot);
 
+		StringBuilder sb = new StringBuilder("writeTo(os) {\n");
 		boolean extended = false;
 		for (int i = 0; i < entryCnt; i++)
 			extended |= sortedEntries[i].isExtended();
@@ -516,24 +517,43 @@ public class DirCache {
 		NB.encodeInt32(tmp, 8, entryCnt);
 		dos.write(tmp, 0, 12);
 
+		sb.append("wrote header\n");
 		// Write the individual file entries.
 		//
 		if (snapshot == null) {
 			// Write a new index, as no entries require smudging.
 			//
-			for (int i = 0; i < entryCnt; i++)
+			sb.append("no snapshot present -> simply write all entries\n");
+			for (int i = 0; i < entryCnt; i++) {
+				sb.append("write entry for " + sortedEntries[i].getPathString()
+						+ ", lm=" + sortedEntries[i].getLastModified()
+						+ ", len=" + sortedEntries[i].getLength() + "\n");
 				sortedEntries[i].write(dos);
+
+			}
 		} else {
 			final int smudge_s = (int) (snapshot.lastModified() / 1000);
 			final int smudge_ns = ((int) (snapshot.lastModified() % 1000)) * 1000000;
 			for (int i = 0; i < entryCnt; i++) {
 				final DirCacheEntry e = sortedEntries[i];
-				if (e.mightBeRacilyClean(smudge_s, smudge_ns))
+				sb.append("write entry for " + e.getPathString() + ", lm="
+						+ e.getLastModified() + ", len=" + e.getLength() + "\n");
+				if (e.mightBeRacilyClean(smudge_s, smudge_ns)) {
+					sb.append("will smudge and then write entry for "
+							+ e.getPathString() + ", lm=" + e.getLastModified()
+							+ ", len=" + e.getLength() + "\n");
 					e.smudgeRacilyClean();
-				e.write(dos);
+					e.write(dos);
+				} else {
+					sb.append("will NOT smudge but just write entry for "
+							+ e.getPathString() + ", lm=" + e.getLastModified()
+							+ ", len=" + e.getLength() + "\n");
+					e.write(dos);
+				}
 			}
 		}
 
+		System.out.println(sb);
 		if (tree != null) {
 			final TemporaryBuffer bb = new TemporaryBuffer.LocalFile();
 			tree.write(tmp, bb);
