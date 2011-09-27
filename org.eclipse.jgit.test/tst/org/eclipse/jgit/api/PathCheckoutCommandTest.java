@@ -148,4 +148,26 @@ public class PathCheckoutCommandTest extends RepositoryTestCase {
 		assertEquals("c", read(new File(db.getWorkTree(), FILE2)));
 	}
 
+	@Test
+	public void testUpdateWorkingDirectoryFromIndex2() throws Exception {
+		CheckoutCommand co = git.checkout();
+		fsTick(git.getRepository().getIndexFile());
+		File written1 = writeTrashFile(FILE1, "3(modified)");
+		File written2 = writeTrashFile(FILE2, "a(modified)");
+		fsTick(written2);
+		git.add().addFilepattern(FILE1).addFilepattern(FILE2).call();
+		assertEquals(
+				"[Test2.txt, mode:100644, length:11, content:a(modified)][f/Test.txt, mode:100644, length:11, content:2]",
+				indexState(CONTENT | LENGTH));
+		fsTick(git.getRepository().getIndexFile());
+
+		writeTrashFile(FILE1, "3(modified again)");
+		writeTrashFile(FILE2, "a(modified again)");
+		co.addPath(FILE1).setStartPoint(secondCommit).call();
+		assertEquals("2", read(written1));
+		assertEquals("a(modified again)", read(written2));
+		assertEquals(
+				"[Test2.txt, mode:100644, length:0, content:a(modified)][f/Test.txt, mode:100644, length:1, content:2]",
+				indexState(CONTENT | LENGTH));
+	}
 }

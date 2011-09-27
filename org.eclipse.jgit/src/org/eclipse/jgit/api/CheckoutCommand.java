@@ -65,6 +65,7 @@ import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.CheckoutConflictException;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Ref;
@@ -245,6 +246,7 @@ public class CheckoutCommand extends GitCommand<Ref> {
 		RevWalk revWalk = new RevWalk(repo);
 		DirCache dc = repo.lockDirCache();
 		try {
+			DirCacheEditor editor = dc.editor();
 			TreeWalk treeWalk = new TreeWalk(revWalk.getObjectReader());
 			treeWalk.setRecursive(true);
 			treeWalk.addTree(new DirCacheIterator(dc));
@@ -254,7 +256,6 @@ public class CheckoutCommand extends GitCommand<Ref> {
 				files.add(treeWalk.getPathString());
 
 			if (startCommit != null || startPoint != null) {
-				DirCacheEditor editor = dc.editor();
 				TreeWalk startWalk = new TreeWalk(revWalk.getObjectReader());
 				startWalk.setRecursive(true);
 				startWalk.setFilter(treeWalk.getFilter());
@@ -262,14 +263,15 @@ public class CheckoutCommand extends GitCommand<Ref> {
 						.getTree());
 				while (startWalk.next()) {
 					final ObjectId blobId = startWalk.getObjectId(0);
+					final FileMode mode = startWalk.getFileMode(0);
 					editor.add(new PathEdit(startWalk.getPathString()) {
 
 						public void apply(DirCacheEntry ent) {
 							ent.setObjectId(blobId);
+							ent.setFileMode(mode);
 						}
 					});
 				}
-				editor.commit();
 			}
 
 			File workTree = repo.getWorkTree();
@@ -278,6 +280,7 @@ public class CheckoutCommand extends GitCommand<Ref> {
 				for (String file : files)
 					DirCacheCheckout.checkoutEntry(repo, new File(workTree,
 							file), dc.getEntry(file), r);
+				editor.commit();
 			} finally {
 				r.release();
 			}
