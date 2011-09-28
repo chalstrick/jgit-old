@@ -503,6 +503,7 @@ public class DirCache {
 	void writeTo(final OutputStream os) throws IOException {
 		final MessageDigest foot = Constants.newMessageDigest();
 		final DigestOutputStream dos = new DigestOutputStream(os, foot);
+		StringBuilder sb = new StringBuilder();
 
 		boolean extended = false;
 		for (int i = 0; i < entryCnt; i++)
@@ -524,12 +525,27 @@ public class DirCache {
 			for (int i = 0; i < entryCnt; i++)
 				sortedEntries[i].write(dos);
 		} else {
+			final long curr_time = System.currentTimeMillis();
 			final int smudge_s = (int) (snapshot.lastModified() / 1000);
 			final int smudge_ns = ((int) (snapshot.lastModified() % 1000)) * 1000000;
 			for (int i = 0; i < entryCnt; i++) {
 				final DirCacheEntry e = sortedEntries[i];
-				if (e.mightBeRacilyClean(smudge_s, smudge_ns))
+				if (e.mightBeRacilyClean(smudge_s, smudge_ns)
+						&& curr_time - e.getLastModified() < 2500) {
 					e.smudgeRacilyClean();
+					sb.append("Smudged the entry for path:")
+							.append(e.getPathString()).append('\n');
+					sb.append("e.lastmodified:").append(e.getLastModified())
+							.append('\n');
+					sb.append("snapshot.lastmodified:")
+							.append(snapshot.lastModified()).append('\n');
+					sb.append("smudge_s:").append(smudge_s).append('\n');
+					sb.append("smudge_ns:").append(smudge_ns).append('\n');
+					sb.append("liveFile.lastmodified:")
+							.append(liveFile.lastModified()).append('\n');
+					sb.append("liveFile.getPath():").append(liveFile.getPath())
+							.append('\n');
+				}
 				e.write(dos);
 			}
 		}
@@ -547,6 +563,7 @@ public class DirCache {
 
 		os.write(foot.digest());
 		os.close();
+		System.out.println(sb);
 	}
 
 	/**
