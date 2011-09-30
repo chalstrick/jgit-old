@@ -158,23 +158,24 @@ public class PathCheckoutCommandTest extends RepositoryTestCase {
 	@Test
 	public void testUpdateWorkingDirectoryFromIndex2() throws Exception {
 		CheckoutCommand co = git.checkout();
-		fsTick(git.getRepository().getIndexFile());
 
 		File written1 = writeTrashFile(FILE1, "3(modified)");
 		File written2 = writeTrashFile(FILE2, "a(modified)");
-		fsTick(written2);
 
 		// make sure that we get unsmudged entries for FILE1 and FILE2
+		fsTick(written2);
 		writeTrashFile(FILE3, "foo");
 		git.add().addFilepattern(FILE3).call();
-		fsTick(git.getRepository().getIndexFile());
 
 		git.add().addFilepattern(FILE1).addFilepattern(FILE2).call();
-		fsTick(git.getRepository().getIndexFile());
 
 		writeTrashFile(FILE1, "3(modified again)");
 		writeTrashFile(FILE2, "a(modified again)");
+
+		// make sure that we get unsmudged entries for FILE1 and FILE2
 		fsTick(written2);
+		writeTrashFile(FILE3, "foobar");
+		git.add().addFilepattern(FILE3).call();
 
 		co.addPath(FILE1).setStartPoint(secondCommit).call();
 
