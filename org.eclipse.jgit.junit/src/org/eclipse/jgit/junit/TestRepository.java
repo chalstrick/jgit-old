@@ -382,7 +382,7 @@ public class TestRepository<R extends Repository> {
 		} finally {
 			inserter.release();
 		}
-		return pool.lookupCommit(id);
+		return pool.parseCommit(id);
 	}
 
 	/** @return a new commit builder. */

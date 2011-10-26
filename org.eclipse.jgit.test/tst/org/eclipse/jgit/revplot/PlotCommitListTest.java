@@ -45,6 +45,15 @@ package org.eclipse.jgit.revplot;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalkTestCase;
 import org.junit.Test;
@@ -307,5 +316,140 @@ public class PlotCommitListTest extends RevWalkTestCase {
 		test.commit(add_simple).parents(merge_fix).lanePos(1);
 		test.commit(merge_fix).parents().lanePos(3);
 		test.noMoreCommits();
+	}
+
+	@Test
+	public void testRepo1Changes() throws Exception {
+		testCommitGraphTopology("*******************************************************************************************************************************************************************************************************************************************2*12*2*21**********3*21**2*12*8*21******4*21**7*21*3*21*2*21**3*21****2**13***5*2**2*14***7*2*37*13*13****8*2*5*23*12***a*31*3*21**2***24**13********5*21********2*2*3*21*14*******a*21*3*21*2*21****5*21***2*2*21********3*21*4*21*5*21*****3*2******17*8*21*2*21*2*21***2*21*2*21*2*21*9*21*4*21*2*21*2*21*******2*12**3*21****************7*31*4*21*15*6*21***2*2**13*4*21*7*5*31*13*3*21**3*21*2*21*2*21**3*21****2*21*3*21*2*21****f*21*3*21*9*21***4*21***2*8*21*7*21*16*****2**3*24*12**6*21*******8*21**3*31*13*7*21**3**31*5***4*2*2**3**3*2*2*h*9*41*43*6*31*2*21*7*21*7*2*******2*21*3*21*c*!2*****2*21************!");
+	}
+
+	@Test
+	public void testRepo2Changes() throws Exception {
+		testCommitGraphTopology("**2*21*3*21********"
+				+ "**3*21**2*21*8*21***"
+				+ "***4*21**7*21*3*21*2*21**3*21***"
+				+ // (add nfs share capa...)
+				"**3*21*****8*21***6*21*6*21*5*21*****8*21*6*21**9*21*3**21*"
+				+ // (merge changes i6)
+				"**3*21**4*21****" // (NGP cookbook)
+				+ "****5*21*******"
+				+ // (add attribute for)
+				"**2*21*5*21*******b*21*3*21*2*21****5*21**"
+				+ // (update admin prop)
+				"*2**31******" // fix all receipes
+				+ "**3*21*4*21*5*21***"
+				+ // (fix admin server recipe)
+				"********9*21*2*21*2*21*2*21*"
+				+ // (merge fix user)
+				"**2*21*2*21*2*21*9*21*4*21*2*21*2*21******"
+				+ // (fix unneccess...)
+				"*2*21**4*21**********"
+				+ // (change the url)
+				"*****6*21*3*21*5*21*2*21**"
+				+ // (add nagios)
+				"***4*21*2*21*5*21*9*21*4*21**3*21*2*21*2*21**3*21****2*21*3*21*2*21****f*21*3*21*9*21***4*21***7*21*6*21*6*21****"
+				+ // (Persistence ass roundup)
+				"**3*21*2*21**7*21*******8*21*2*21*"
+				+ "3*21*7*21**3**31******a*21***!e****"
+				+ "***4*21*3*21*2*21*6*21*******" + "*2*21*3*21*****"
+				+ "*2*21************!");
+	}
+
+	public void testCommitGraphTopology(String graphDescription) throws Exception {
+		List<RevCommit> commits = createCommitGraph(graphDescription);
+
+		PlotWalk pw = new PlotWalk(db);
+		for (Ref f : db.getAllRefs().values())
+			pw.markStart(pw.lookupCommit(f.getLeaf().getObjectId()));
+
+		PlotCommitList<PlotLane> pcl = new PlotCommitList<PlotLane>();
+		pcl.source(pw);
+		pcl.fillTo(Integer.MAX_VALUE);
+
+		for (int i = 0; i < pcl.size(); i++) {
+			PlotCommit<PlotLane> pc = pcl.get(i);
+			int ci = lookupIndex(commits, pc.getId(), i);
+			RevCommit c = commits.get(ci);
+
+			System.out.println("PlotCommit/RevCommit: #" + i + ":"
+					+ pc.toString() + "/  #" + ci + ":" + c.toString());
+			assertEquals("Not the same number of parents on commit #" + i
+					+ ": " + c.toString(), pc.getParentCount(),
+					c.getParentCount());
+			assertEquals("Not the same number of children on commit #" + i
+					+ ": " + c.toString(), pc.getChildCount(),
+					getChildrenCount(commits, c));
+
+			System.out.println("#parents/#children/lanePos: "
+					+ pc.getParentCount() + "/" + pc.getChildCount() + "/"
+					+ pc.getLane().getPosition()
+					+ ". CommitData #parents/#childs:"
+					+ ((c.getParents() == null) ? 0 : c.getParentCount()) + "/"
+					+ getChildrenCount(commits, c));
+		}
+	}
+
+	private int lookupIndex(List<RevCommit> commits, ObjectId id, int i) {
+		for (int j = i; j < commits.size(); j++)
+			if (commits.get(j).getId().equals(id))
+				return j;
+		for (int j = 0; j < i; j++)
+			if (commits.get(j).getId().equals(id))
+				return j;
+		return -1;
+	}
+
+	private int getChildrenCount(List<RevCommit> commits, RevCommit parent) {
+		int nrOfChildren = 0;
+		for (RevCommit c : commits) {
+			for (RevCommit aktParent : c.getParents()) {
+				if (aktParent.equals(parent))
+					nrOfChildren++;
+			}
+		}
+		return nrOfChildren;
+	}
+
+	public List<RevCommit> createCommitGraph(String graphDescription)
+			throws Exception {
+		System.out.println("processing description: " + graphDescription);
+		int tagnr = 0;
+		RevCommit lastCommit = null;
+		byte[] bytes = graphDescription.getBytes();
+		List<RevCommit> commits = new ArrayList<RevCommit>();
+		List<RevCommit> parents = new ArrayList<RevCommit>();
+		for (int i = 0; i < bytes.length; i++) {
+			if (bytes[i] == '!') {
+				ltag("tag" + tagnr++, lastCommit.getId());
+				continue;
+			} else if (bytes[i] != '*') {
+				do
+					parents.add(commits.get(commits.size()
+							- b2index(bytes[i++])));
+				while (bytes[i] != '*');
+				lastCommit = commit(parents.toArray(new RevCommit[parents
+						.size()]));
+				parents.clear();
+			} else
+				lastCommit = (lastCommit == null) ? commit()
+						: commit(lastCommit);
+			commits.add(lastCommit);
+		}
+		Collections.reverse(commits);
+		return commits;
+	}
+
+	public int b2index(byte b) {
+		if (b >= '0' && b <= '9')
+			return b - '0';
+		return 10 + b - 'a';
+	}
+
+	public void ltag(String name, ObjectId tgt) throws IOException {
+		RefUpdate tagRef = db.updateRef(Constants.R_TAGS + name);
+		tagRef.setNewObjectId(tgt);
+		tagRef.setForceUpdate(true);
+		tagRef.setRefLogMessage("tagged " + name, false);
+		tagRef.update();
 	}
 }
