@@ -44,8 +44,16 @@ package org.eclipse.jgit.revplot;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.io.IOException;
+
+import org.eclipse.jgit.lib.AnyObjectId;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevWalkTestCase;
 import org.junit.Test;
 
@@ -130,6 +138,56 @@ public class PlotCommitListTest extends RevWalkTestCase {
 		test.commit(c).lanePos(0).parents(a);
 		test.commit(b).lanePos(1).parents(a);
 		test.commit(a).lanePos(0).parents();
+		test.noMoreCommits();
+	}
+
+	public Ref ltag(String tag, AnyObjectId id) throws IOException {
+		if (!tag.startsWith(Constants.R_TAGS))
+			tag = Constants.R_TAGS + tag;
+		RefUpdate updateRef = db.updateRef(tag);
+		updateRef.setNewObjectId(id);
+		switch (updateRef.forceUpdate()) {
+		case FAST_FORWARD:
+		case FORCED:
+		case NEW:
+		case NO_CHANGE:
+			return updateRef.getRef();
+		default:
+			fail("tag " + tag + " couldn't be created. Result:"
+					+ updateRef.getResult());
+			return null;
+		}
+	}
+
+	@Test
+	public void testMerged2() throws Exception {
+		final RevCommit r = commit();
+		final RevCommit s0 = commit(r);
+		final RevCommit m0 = commit(r);
+		final RevCommit ss0 = commit(r);
+		final RevCommit m1 = commit(m0);
+		System.out.println("m1:" + m1.getName() + ", s0:" + s0.getName()
+				+ ", m0:" + m0.getName() + ", ss0:" + ss0.getName() + ", r:"
+				+ r.getName());
+		ltag("s0", s0);
+		ltag("m1", m1);
+		ltag("ss0", ss0);
+
+		PlotWalk pw = new PlotWalk(db);
+		pw.markStart(pw.lookupCommit(m1.getId()));
+		pw.markStart(pw.lookupCommit(s0.getId()));
+		pw.markStart(pw.lookupCommit(ss0.getId()));
+		pw.sort(RevSort.COMMIT_TIME_DESC);
+
+		PlotCommitList<PlotLane> pcl = new PlotCommitList<PlotLane>();
+		pcl.source(pw);
+		pcl.fillTo(Integer.MAX_VALUE);
+
+		CommitListAssert test = new CommitListAssert(pcl);
+		test.commit(r).lanePos(0).parents();
+		test.commit(m0).lanePos(0).parents(r);
+		test.commit(s0).lanePos(1).parents(r);
+		test.commit(m1).lanePos(0).parents(m0);
 		test.noMoreCommits();
 	}
 
