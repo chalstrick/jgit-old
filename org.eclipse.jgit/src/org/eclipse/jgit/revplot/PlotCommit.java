@@ -44,8 +44,8 @@
 package org.eclipse.jgit.revplot;
 
 import org.eclipse.jgit.lib.AnyObjectId;
-import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.revwalk.RevCommit;
 
 /**
  * A commit reference to a commit in the DAG.
@@ -185,5 +185,23 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 		children = NO_CHILDREN;
 		lane = null;
 		super.reset();
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder ret=new StringBuilder();
+		ret.append("PlotCommit(");
+		ret.append(super.toString());
+		ret.append("): lane:" + ((lane == null) ? "null" : lane.toString()));
+		ret.append(" passingLanes: ");
+		for(PlotLane l:passingLanes)
+			ret.append(l.toString() + " ");
+		ret.append(" children:");
+		for(PlotCommit<PlotLane> c : children)
+			ret.append(" " + c.getName() + " on lane" + c.getLane());
+		ret.append("  refs: ");
+		for(Ref f : refs)
+			ret.append(" " + f.getName());
+		return ret.toString();
 	}
 }
