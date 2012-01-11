@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2011, Christian Halstrick <christian.halstrick@sap.com>
+ * Copyright (C) 2011, Shawn O. Pearce <spearce@spearce.org>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -42,14 +43,15 @@
  */
 package org.eclipse.jgit.storage.file;
 
-import static org.eclipse.jgit.storage.dfs.DfsObjDatabase.PackSource.GC;
-
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -63,9 +65,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.storage.dfs.DfsGarbageCollector;
 import org.eclipse.jgit.storage.dfs.DfsPackFile;
-import org.eclipse.jgit.storage.file.PackIndex.MutableEntry;
 import org.eclipse.jgit.storage.pack.PackConfig;
 import org.eclipse.jgit.storage.pack.PackWriter;
 import org.eclipse.jgit.treewalk.TreeWalk;
@@ -73,8 +73,8 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.eclipse.jgit.util.FileUtils;
 
 /**
- * A garbarge collector for git {@link FileRepository}. This class started as a
- * copy of {@link DfsGarbageCollector} from Shawn O. Pearce adapted to
+ * A garbage collector for git {@link FileRepository}. This class started as a
+ * copy of DfsGarbageCollector from Shawn O. Pearce adapted to
  * FileRepositories. Additionally the index is taken into account and reflogs
  * will be handled.
  */
@@ -92,34 +92,55 @@ public class GC {
 	}
 
 	/**
+	 * @param pm
 	 * @throws IOException
 	 *
 	 */
-	public void gc() throws IOException {
-		if (repo != null) {
-			pack_refs();
-			reflog_expire();
-			repack(null);
-			prune(null);
-			// rerere_gc();
-		}
+	public void gc(ProgressMonitor pm) throws IOException {
+		if (pm == null)
+			pm = NullProgressMonitor.INSTANCE;
+
+		pack_refs(pm);
+		reflog_expire(pm);
+		repack(pm);
+		prune(pm, null);
+		// rerere_gc(pm);
 	}
 
 	/**
+	 * @param pm
 	 * @param objectsToKeep
 	 * @throws IOException
 	 *
 	 */
-	public void prune(Set<ObjectId> objectsToKeep) throws IOException {
-		for (PackFile p : objdb.getPacks()) {
-			for (MutableEntry e : p) {
-				if (objectsToKeep != null) {
-					ObjectId oid = e.toObjectId();
-					if (!objectsToKeep.contains(oid)) {
-						FileUtils.delete(objdb.fileFor(oid));
-					}
-				} else {
-					FileUtils.delete(objdb.fileFor(e.toObjectId()));
+	public void prune(ProgressMonitor pm, Set<ObjectId> objectsToKeep)
+			throws IOException {
+		Collection<PackFile> packs = objdb.getPacks();
+		File objects = repo.getObjectsDirectory();
+		String[] fanout = objects.list();
+		if (fanout == null)
+			fanout = new String[0];
+		for (String d : fanout) {
+			if (d.length() != 2)
+				continue;
+			String[] entries = new File(objects, d).list();
+			if (entries == null)
+				continue;
+			for (String e : entries) {
+				boolean found = false;
+				if (e.length() != Constants.OBJECT_ID_STRING_LENGTH - 2)
+					continue;
+				try {
+					ObjectId id = ObjectId.fromString(d + e);
+					for (PackFile p : packs)
+						if (p.hasObject(id)) {
+							found = true;
+							break;
+						}
+					if (found || objectsToKeep.contains(id))
+						FileUtils.delete(objdb.fileFor(id));
+				} catch (IllegalArgumentException notAnObject) {
+					// ignoring the file that does not represent loose object
 				}
 			}
 		}
@@ -131,16 +152,13 @@ public class GC {
 	 * @throws IOException
 	 *
 	 */
-	public boolean repack(ProgressMonitor pm) throws IOException {
-		if (pm == null)
-			pm = NullProgressMonitor.INSTANCE;
-
+	public Collection<PackFile> repack(ProgressMonitor pm) throws IOException {
 		PackConfig packConfig = new PackConfig(repo);
 		if (packConfig.getIndexVersion() != 2)
 			throw new IllegalStateException("Only index version 2");
 
 		Map<String, Ref> refsBefore = repo.getAllRefs();
-		// Collection<PackFile> packsBefore = objdb.getPacks();
+		Collection<PackFile> packsBefore = objdb.getPacks();
 		// why this, why
 		// if (packsBefore.isEmpty())
 		// return true;
@@ -162,10 +180,12 @@ public class GC {
 		}
 		tagTargets.addAll(allHeads);
 
-		packHeads(pm, allHeads);
-		packRest(pm, indexObjects);
+		List<PackFile> ret = new ArrayList<PackFile>(2);
+		ret.add(packHeads(pm, allHeads));
+		if (!nonHeads.isEmpty())
+			ret.add(packRest(pm, indexObjects));
 		// packGarbage(pm);
-		return true;
+		return ret;
 	}
 
 	/**
@@ -213,7 +233,14 @@ public class GC {
 		}
 	}
 
-	private void writePack(ProgressMonitor pm, Set<? extends ObjectId> want,
+	private PackFile packHeads(ProgressMonitor pm, HashSet<ObjectId> allHeads)
+			throws IOException {
+		if (allHeads.isEmpty())
+			return null;
+		return writePack(pm, allHeads, Collections.<ObjectId> emptySet());
+	}
+
+	private PackFile writePack(ProgressMonitor pm, Set<? extends ObjectId> want,
 			Set<? extends ObjectId> have) throws IOException {
 		PackWriter pw = new PackWriter(repo);
 		try {
@@ -238,47 +265,48 @@ public class GC {
 					out.close();
 				}
 				idx.setReadOnly();
-				objdb.openPack(pack, idx);
+				return objdb.openPack(pack, idx);
 			}
 		} finally {
 			pw.release();
 		}
 	}
 
-	private void packHeads(ProgressMonitor pm, HashSet<ObjectId> allHeads)
+	private PackFile packRest(ProgressMonitor pm, Set<ObjectId> nonHeads,
+			Set<ObjectId> allHeads, PackFile newPack)
 			throws IOException {
-		if (allHeads.isEmpty())
-			return;
-		writePack(pm, allHeads, Collections.<ObjectId> emptySet());
-	}
-
-	private void packRest(ProgressMonitor pm) throws IOException {
-		if (nonHeads.isEmpty() || objectsPacked == getObjectsBefore())
-			return;
-
 		PackWriter pw = newPackWriter();
 		try {
-			for (DfsPackFile pack : newPackList)
-				pw.excludeObjects(pack.getPackIndex(ctx));
+			pw.excludeObjects(newPack.)
 			pw.preparePack(pm, nonHeads, allHeads);
 			if (0 < pw.getObjectCount())
-				writePack(GC, pw, pm);
+				return writePack(GC, pw, pm);
 		} finally {
 			pw.release();
 		}
 	}
 
+	private PackWriter newPackWriter() {
+		PackWriter pw = new PackWriter(packConfig, ctx);
+		pw.setDeltaBaseAsOffset(true);
+		pw.setReuseDeltaCommits(false);
+		pw.setTagTargets(tagTargets);
+		return pw;
+	}
+
 	/**
+	 * @param pm
 	 *
 	 */
-	public void reflog_expire() {
+	public void reflog_expire(ProgressMonitor pm) {
 		// TODO Auto-generated method stub
 	}
 
 	/**
+	 * @param pm
 	 *
 	 */
-	public void pack_refs() {
+	public void pack_refs(ProgressMonitor pm) {
 		// TODO Auto-generated method stub
 	}
 
@@ -291,4 +319,12 @@ public class GC {
 		return new File(packdir, "pack-" + name.name() + t);
 	}
 
+	private long getObjectsBefore() {
+		int objectsBefore;
+		if (objectsBefore == 0) {
+			for (DfsPackFile p : packsBefore)
+				objectsBefore += p.getPackDescription().getObjectCount();
+		}
+		return objectsBefore;
+	}
 }

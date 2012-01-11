@@ -1,3 +1,45 @@
+/*
+ * Copyright (C) 2011, Christian Halstrick <christian.halstrick@sap.com>
+ * and other copyright owners as documented in the project's IP log.
+ *
+ * This program and the accompanying materials are made available
+ * under the terms of the Eclipse Distribution License v1.0 which
+ * accompanies this distribution, is reproduced below, and is
+ * available at http://www.eclipse.org/org/documents/edl-v10.php
+ *
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or
+ * without modification, are permitted provided that the following
+ * conditions are met:
+ *
+ * - Redistributions of source code must retain the above copyright
+ *   notice, this list of conditions and the following disclaimer.
+ *
+ * - Redistributions in binary form must reproduce the above
+ *   copyright notice, this list of conditions and the following
+ *   disclaimer in the documentation and/or other materials provided
+ *   with the distribution.
+ *
+ * - Neither the name of the Eclipse Foundation, Inc. nor the
+ *   names of its contributors may be used to endorse or promote
+ *   products derived from this software without specific prior
+ *   written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package org.eclipse.jgit.storage.file;
 
 import static org.junit.Assert.assertEquals;
@@ -11,7 +53,6 @@ import java.util.Set;
 import org.eclipse.jgit.junit.LocalDiskRepositoryTestCase;
 import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.TestRepository.BranchBuilder;
-import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.PackIndex.MutableEntry;
 import org.junit.After;
@@ -44,7 +85,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 				.create();
 		assertEquals(4, looseObjectIDs().size());
 		assertEquals(0, packedObjectIDs().size());
-		gc.gc();
+		gc.gc(null);
 		assertEquals(0, looseObjectIDs().size());
 		assertEquals(4, packedObjectIDs().size());
 		assertEquals(1, repo.getObjectDatabase().getPacks().size());
@@ -55,7 +96,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 		tr.commit().add("A", "A").add("B", "B").create();
 		assertEquals(4, looseObjectIDs().size());
 		assertEquals(0, packedObjectIDs().size());
-		gc.gc();
+		gc.gc(null);
 		assertEquals(4, looseObjectIDs().size());
 		assertEquals(0, packedObjectIDs().size());
 		assertEquals(0, repo.getObjectDatabase().getPacks().size());
@@ -69,7 +110,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 
 		assertEquals(8, looseObjectIDs().size());
 		assertEquals(0, packedObjectIDs().size());
-		gc.gc();
+		gc.gc(null);
 		assertEquals(0, looseObjectIDs().size()); // todo, should be 0
 		assertEquals(8, packedObjectIDs().size());
 		assertEquals(1, repo.getObjectDatabase().getPacks().size());
@@ -85,7 +126,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 
 		assertEquals(8, looseObjectIDs().size());
 		assertEquals(0, packedObjectIDs().size());
-		gc.gc();
+		gc.gc(null);
 		assertEquals(4, looseObjectIDs().size()); // todo, should be 0
 		assertEquals(4, packedObjectIDs().size());
 		assertEquals(1, repo.getObjectDatabase().getPacks().size());
@@ -101,7 +142,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 									// survive
 		assertEquals(9, looseObjectIDs().size());
 		assertEquals(0, packedObjectIDs().size());
-		gc.gc();
+		gc.gc(null);
 		assertEquals(1, looseObjectIDs().size()); // todo, should be 0
 		assertEquals(8, packedObjectIDs().size());
 		assertEquals(1, repo.getObjectDatabase().getPacks().size());
