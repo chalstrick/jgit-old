@@ -247,10 +247,18 @@ public class RefDirectory extends RefDatabase {
 		if (scan.newLoose != null) {
 			loose = scan.newLoose.toRefList();
 			if (looseRefs.compareAndSet(oldLoose, loose))
+ {
+				debugRefList(oldLoose, loose,
+						"Incrementing modcnt in getLooseRefs() because looserefs changed.");
 				modCnt.incrementAndGet();
+			}
 		} else
 			loose = oldLoose;
 		return loose;
+	}
+
+	private void debugRefList(final RefList oldList, RefList newList, String msg) {
+		System.out.println(msg + " old: " + oldList + ". new: " + newList);
 	}
 
 	@Override
@@ -281,7 +289,11 @@ public class RefDirectory extends RefDatabase {
 			scan.newLoose.sort();
 			loose = scan.newLoose.toRefList();
 			if (looseRefs.compareAndSet(oldLoose, loose))
+ {
+				debugRefList(oldLoose, loose,
+						"Incrementing modcnt in getRefs() because looserefs changed");
 				modCnt.incrementAndGet();
+			}
 		} else
 			loose = oldLoose;
 		fireRefsChanged();
@@ -536,7 +548,11 @@ public class RefDirectory extends RefDatabase {
 			cList = looseRefs.get();
 			nList = cList.put(ref);
 		} while (!looseRefs.compareAndSet(cList, nList));
-		modCnt.incrementAndGet();
+		{
+			debugRefList(cList, nList,
+					"Incrementing modcnt in putLooseRefs() because looseRefs changed.");
+			modCnt.incrementAndGet();
+		}
 		fireRefsChanged();
 	}
 
@@ -563,7 +579,7 @@ public class RefDirectory extends RefDatabase {
 			}
 		}
 
-		RefList<LooseRef> curLoose, newLoose;
+		RefList<LooseRef> curLoose, newLoose = null;
 		do {
 			curLoose = looseRefs.get();
 			int idx = curLoose.find(name);
@@ -579,7 +595,12 @@ public class RefDirectory extends RefDatabase {
 			delete(fileFor(name), levels);
 		}
 
-		modCnt.incrementAndGet();
+		{
+			debugRefList(curLoose, newLoose,
+					"Incrementing modcnt because delete(RefDirectoryUpdate upd). upd"
+							+ update.toString());
+			modCnt.incrementAndGet();
+		}
 		fireRefsChanged();
 	}
 
@@ -627,7 +648,11 @@ public class RefDirectory extends RefDatabase {
 
 		final PackedRefList newList = readPackedRefs();
 		if (packedRefs.compareAndSet(curList, newList))
+ {
+			debugRefList(curList, newList,
+					"Incrementing modcnt in getPackedRefs()");
 			modCnt.incrementAndGet();
+		}
 		return newList;
 	}
 
@@ -737,15 +762,27 @@ public class RefDirectory extends RefDatabase {
 			final LooseRef o = curList.get(idx);
 			final LooseRef n = scanRef(o, name);
 			if (n == null) {
-				if (looseRefs.compareAndSet(curList, curList.remove(idx)))
+				RefList<LooseRef> newL = curList.remove(idx);
+				if (looseRefs.compareAndSet(curList, newL))
+ {
+					debugRefList(curList, newL,
+							"Incrementing modcnt in readRef(name=" + name
+									+ ", packed=" + packed + "(1)");
 					modCnt.incrementAndGet();
+				}
 				return packed.get(name);
 			}
 
 			if (o == n)
 				return n;
-			if (looseRefs.compareAndSet(curList, curList.set(idx, n)))
+			RefList<LooseRef> newL = curList.set(idx, n);
+			if (looseRefs.compareAndSet(curList, newL))
+ {
+				debugRefList(curList, newL,
+						"Incrementing modcnt in readRef(name=" + name
+								+ ", packed=" + packed + "(2)");
 				modCnt.incrementAndGet();
+			}
 			return n;
 		}
 
@@ -759,8 +796,13 @@ public class RefDirectory extends RefDatabase {
 			if (name.equals(additionalRefsNames[i]))
 				return n;
 
-		if (looseRefs.compareAndSet(curList, curList.add(idx, n)))
+		RefList<LooseRef> newL = curList.add(idx, n);
+		if (looseRefs.compareAndSet(curList, newL))
+ {
+			debugRefList(curList, newL, "Incrementing modcnt in readRef(name="
+					+ name + ", packed=" + packed + "(3)");
 			modCnt.incrementAndGet();
+		}
 		return n;
 	}
 
@@ -844,8 +886,12 @@ public class RefDirectory extends RefDatabase {
 	private void fireRefsChanged() {
 		final int last = lastNotifiedModCnt.get();
 		final int curr = modCnt.get();
-		if (last != curr && lastNotifiedModCnt.compareAndSet(last, curr) && last != 0)
+		if (last != curr && lastNotifiedModCnt.compareAndSet(last, curr)
+				&& last != 0) {
+			System.out.println("Fire RefsChangedEvend because lastModifiedCnt="
+					+ last + ", modCnt=" + curr);
 			parent.fireEvent(new RefsChangedEvent());
+		}
 	}
 
 	/**

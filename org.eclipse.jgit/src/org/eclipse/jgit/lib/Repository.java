@@ -148,6 +148,7 @@ public abstract class Repository {
 	 *            the event to deliver.
 	 */
 	public void fireEvent(RepositoryEvent<?> event) {
+		System.out.println("Fired event: " + event);
 		event.setRepository(this);
 		myListeners.dispatch(event);
 		globalListeners.dispatch(event);
