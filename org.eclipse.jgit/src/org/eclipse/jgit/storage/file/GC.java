@@ -82,9 +82,11 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.eclipse.jgit.util.FileUtils;
 
 /**
- * A garbage collector for git {@link FileRepository}. This class started as a
- * copy of DfsGarbageCollector from Shawn O. Pearce adapted to FileRepositories.
- * Additionally the index is taken into account and reflogs are handled.
+ * A garbage collector for git {@link FileRepository}. Instances of this class
+ * are not thread-safe. Don't use the same instance from multiple threads.
+ *
+ * This class started as a copy of DfsGarbageCollector from Shawn O. Pearce
+ * adapted to FileRepositories.
  */
 public class GC {
 	private final FileRepository repo;
@@ -98,12 +100,6 @@ public class GC {
 	 * needed during {@link #prune(Set)} where we can optimize by looking at the
 	 * difference between the current refs and the refs which existed during
 	 * last {@link #repack()}.
-	 *
-	 * TODO: this field makes this class non thread-safe. Decide whether we
-	 * accept this and document it or introduce a complex return type for
-	 * repack() which captures the pack files and the refs together. Then
-	 * callers to prune() could explicitly give the refs used during last
-	 * repack()
 	 */
 	private Map<String, Ref> lastPackedRefs;
 
@@ -122,23 +118,22 @@ public class GC {
 	 *            the repo to work on
 	 */
 	public GC(FileRepository repo) {
-		ProgressMonitor pm = NullProgressMonitor.INSTANCE;
 		this.repo = repo;
-		this.pm = (pm == null) ? NullProgressMonitor.INSTANCE : pm;
-		this.expireAgeMillis = 14 * 24 * 60 * 60 * 1000l;
+		this.pm = NullProgressMonitor.INSTANCE;
+		this.expireAgeMillis = 14 * 24 * 60 * 60 * 1000L;
 	}
 
 	/**
 	 * Runs a garbage collector on a {@link FileRepository}. It will
 	 * <ul>
+	 * <li>pack loose references into packed-refs</li>
 	 * <li>repack all reachable objects into new pack files and delete the old
 	 * pack files</li>
 	 * <li>prune all loose objects which are now reachable by packs</li>
 	 * </ul>
 	 *
-	 * @return the collection of {@link PackFile}'s which are created newly
+	 * @return the collection of {@link PackFile}'s which are newly created
 	 * @throws IOException
-	 *
 	 */
 	public Collection<PackFile> gc() throws IOException {
 		packRefs();
@@ -178,7 +173,8 @@ public class GC {
 			for (PackFile newPack : newPacks)
 				if (oldName.equals(newPack.getPackName()))
 					continue oldPackLoop;
-			if (!nameFor(oldName, ".pack.keep").exists()) {
+
+			if (!new File(oldPack.getPackFile().getPath() + ".keep").exists()) {
 				oldPack.close();
 				FileUtils.delete(nameFor(oldName, ".pack"), deleteOptions);
 				FileUtils.delete(nameFor(oldName, ".idx"), deleteOptions);

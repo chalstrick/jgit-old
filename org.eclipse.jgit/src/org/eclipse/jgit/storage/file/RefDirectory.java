@@ -65,6 +65,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.text.MessageFormat;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -594,11 +595,10 @@ public class RefDirectory extends RefDatabase {
 	 *            the refs to be added. Must be fully qualified.
 	 * @throws IOException
 	 */
-	public void pack(String[] refs) throws IOException {
-		if (refs.length == 0)
+	public void pack(List<String> refs) throws IOException {
+		if (refs.size() == 0)
 			return;
 		FS fs = parent.getFS();
-		LockFile[] locks = new LockFile[refs.length];
 
 		// Lock the packed refs file and read the content
 		LockFile lck = new LockFile(packedRefsFile, fs);
@@ -607,43 +607,30 @@ public class RefDirectory extends RefDatabase {
 					JGitText.get().cannotLock, packedRefsFile));
 
 		try {
-			String refName;
-			LockFile rLck;
 			final PackedRefList packed = getPackedRefs();
 			RefList<Ref> cur = readPackedRefs();
 
 			// Iterate over all refs to be packed
-			for (int i = 0; i < refs.length; i++) {
-				refName = refs[i];
+			for (String refName : refs) {
 				Ref ref = readRef(refName, cur);
 				if (ref.isSymbolic())
 					continue; // can't pack symbolic refs
-				if (ref.getStorage().isLoose()) {
-					// Lock the loose ref
-					rLck = new LockFile(fileFor(refName),
-							parent.getFS());
-					if (!rLck.lock())
-						continue;
-					locks[i] = rLck;
-				}
 				// Add/Update it to packed-refs
 				int idx = cur.find(refName);
 				if (idx >= 0) {
 					cur = cur.set(idx, peeledPackedRef(ref));
 				} else
 					cur = cur.add(idx, peeledPackedRef(ref));
-
 			}
 
 			// The new content for packed-refs is collected. Persist it.
 			commitPackedRefs(lck, cur, packed);
 
-			// Now delete the loose refs which are locked and now packed
-			for (int i = 0; i < refs.length; i++) {
-				rLck = locks[i];
+			// Now delete the loose refs which are now packed
+			for (String refName : refs) {
+				rLck = locksByName.get(refName);
 				if (rLck == null)
 					continue;
-				refName = refs[i];
 				RefList<LooseRef> curLoose, newLoose;
 				do {
 					curLoose = looseRefs.get();
@@ -654,14 +641,14 @@ public class RefDirectory extends RefDatabase {
 				} while (!looseRefs.compareAndSet(curLoose, newLoose));
 				int levels = levelsIn(refName) - 2;
 				delete(fileFor(refName), levels);
-				locks[i] = null;
+				locksByName.remove(refName);
 				rLck.unlock();
 			}
 			// Don't fire refsChanged. The refs have not change, only their
 			// storage.
 		} finally {
 			lck.unlock();
-			for (LockFile l : locks)
+			for (LockFile l : locksByName.values())
 				if (l != null)
 					l.unlock();
 		}
