@@ -47,6 +47,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.text.MessageFormat;
@@ -106,6 +107,8 @@ public class GC {
 
 	private Date expire;
 
+	private PrintStream log;
+
 	/**
 	 * the refs which existed during the last call to {@link #repack()}. This is
 	 * needed during {@link #prune(Set)} where we can optimize by looking at the
@@ -150,11 +153,13 @@ public class GC {
 	 */
 	public Collection<PackFile> gc() throws IOException, ParseException {
 		pm.start(6 /* tasks */);
+		log("Started gc()\n");
 		packRefs();
 		// TODO: implement reflog_expire(pm, repo);
 		Collection<PackFile> newPacks = repack();
 		prune(Collections.<ObjectId> emptySet());
 		// TODO: implement rerere_gc(pm);
+		log("Finished gc()\n");
 		return newPacks;
 	}
 
@@ -177,26 +182,34 @@ public class GC {
 	private void deleteOldPacks(Collection<PackFile> oldPacks,
 			Collection<PackFile> newPacks, boolean ignoreErrors)
 			throws IOException {
+		log("Started deleteOldPacks()\n");
+
 		int deleteOptions = FileUtils.RETRY | FileUtils.SKIP_MISSING;
 		if (ignoreErrors)
 			deleteOptions |= FileUtils.IGNORE_ERRORS;
 		oldPackLoop: for (PackFile oldPack : oldPacks) {
 			String oldName = oldPack.getPackName();
+			log("Inspecting packfile " + oldName + "\n");
 			// check whether an old pack file is also among the list of new
 			// pack files. Then we must not delete it.
 			for (PackFile newPack : newPacks)
-				if (oldName.equals(newPack.getPackName()))
+				if (oldName.equals(newPack.getPackName())) {
+					log("packfile is among the newly created packfiles -> ignore it.\n");
 					continue oldPackLoop;
+				}
 
 			if (!oldPack.shouldBeKept()) {
 				oldPack.close();
+				log("closed packfile. About to delete .pack and .idx file\n");
 				FileUtils.delete(nameFor(oldName, ".pack"), deleteOptions);
 				FileUtils.delete(nameFor(oldName, ".idx"), deleteOptions);
-			}
+			} else
+				log("packfile should explicitly be kept -> ignore it.\n");
 		}
 		// close the complete object database. Thats my only chance to force
 		// rescanning and to detect that certain pack files are now deleted.
 		repo.getObjectDatabase().close();
+		log("Finished deleteOldPacks()\n");
 	}
 
 	/**
@@ -207,6 +220,7 @@ public class GC {
 	 * @throws IOException
 	 */
 	public void prunePacked() throws IOException {
+		log("Started prunePacked()\n");
 		ObjectDirectory objdb = repo.getObjectDatabase();
 		Collection<PackFile> packs = objdb.getPacks();
 		File objects = repo.getObjectsDirectory();
@@ -216,15 +230,24 @@ public class GC {
 			pm.beginTask(JGitText.get().pruneLoosePackedObjects, fanout.length);
 			try {
 				for (String d : fanout) {
+					log("inspecting directory $GITDIR/objects/" + d + "\n");
 					pm.update(1);
-					if (d.length() != 2)
+					if (d.length() != 2) {
+						log("Directory name has not the right size -> ignore it\n");
 						continue;
+					}
 					String[] entries = new File(objects, d).list();
-					if (entries == null)
+					if (entries == null) {
+						log("Directory is empty -> ignore it\n");
 						continue;
+					}
 					for (String e : entries) {
-						if (e.length() != Constants.OBJECT_ID_STRING_LENGTH - 2)
+						log("inspecting file $GITDIR/objects/" + d + "/" + e
+								+ "\n");
+						if (e.length() != Constants.OBJECT_ID_STRING_LENGTH - 2) {
+							log("File name has not the right size -> ignore it\n");
 							continue;
+						}
 						ObjectId id;
 						try {
 							id = ObjectId.fromString(d + e);
@@ -234,21 +257,30 @@ public class GC {
 							continue;
 						}
 						boolean found = false;
-						for (PackFile p : packs)
+						for (PackFile p : packs) {
+							log("inspecting whether packfile "
+									+ p.getPackName()
+									+ " contains the object\n");
 							if (p.hasObject(id)) {
+								log("found the object\n");
 								found = true;
 								break;
 							}
-						if (found)
+						}
+						if (found) {
+							log("delete the file\n");
 							FileUtils.delete(objdb.fileFor(id), FileUtils.RETRY
 									| FileUtils.SKIP_MISSING
 									| FileUtils.IGNORE_ERRORS);
+						}
 					}
 				}
 			} finally {
 				pm.endTask();
 			}
-		}
+		} else
+			log("no loose objects to pack");
+		log("Finished prunePacked()\n");
 	}
 
 	/**
@@ -266,6 +298,7 @@ public class GC {
 	 */
 	public void prune(Set<ObjectId> objectsToKeep) throws IOException,
 			ParseException {
+		log("Started prune()\n");
 		long expireDate = Long.MAX_VALUE;
 
 		if (expire == null && expireAgeMillis == -1) {
@@ -281,6 +314,8 @@ public class GC {
 			expireDate = expire.getTime();
 		if (expireAgeMillis != -1)
 			expireDate = System.currentTimeMillis() - expireAgeMillis;
+		log("calculated expireDate to be " + new Date(expireDate) + "\n");
+
 
 		// Collect all loose objects which are old enough, not referenced from
 		// the index and not in objectsToKeep
@@ -293,30 +328,48 @@ public class GC {
 					fanout.length);
 			try {
 				for (String d : fanout) {
+					log("inspecting directory $GITDIR/objects/" + d + "\n");
 					pm.update(1);
-					if (d.length() != 2)
+					if (d.length() != 2) {
+						log("Directory name has not the right size -> ignore it\n");
 						continue;
+					}
 					File[] entries = new File(objects, d).listFiles();
 					if (entries == null)
 						continue;
 					for (File f : entries) {
 						String fName = f.getName();
-						if (fName.length() != Constants.OBJECT_ID_STRING_LENGTH - 2)
+						log("inspecting file $GITDIR/objects/" + d + "/"
+								+ fName + "\n");
+
+						if (fName.length() != Constants.OBJECT_ID_STRING_LENGTH - 2) {
+							log("File name has not the right size -> ignore it\n");
 							continue;
-						if (f.lastModified() >= expireDate)
+						}
+						if (f.lastModified() >= expireDate) {
+							log("File modification date is equal or greater than expireDate-> ignore it\n");
 							continue;
+						}
 						try {
 							ObjectId id = ObjectId.fromString(d + fName);
-							if (objectsToKeep.contains(id))
+							if (objectsToKeep.contains(id)) {
+								log("File is in objectsToKeep -> ignore it\n");
 								continue;
-							if (indexObjects == null)
+							}
+							if (indexObjects == null) {
+								log("getting all indexObjects\n");
 								indexObjects = listNonHEADIndexObjects();
-							if (indexObjects.contains(id))
+							}
+							if (indexObjects.contains(id)) {
+								log("file is in indexObjects -> ignore it\n");
 								continue;
+							}
+							log("file is candidate to be deleted\n");
 							deletionCandidates.put(id, f);
 						} catch (IllegalArgumentException notAnObject) {
 							// ignoring the file that does not represent loose
 							// object
+							log("file doesn't represent a loose object -> ignore it\n");
 							continue;
 						}
 					}
@@ -325,28 +378,37 @@ public class GC {
 				pm.endTask();
 			}
 		}
-		if (deletionCandidates.isEmpty())
+		if (deletionCandidates.isEmpty()) {
+			log("No candidates found\nFinished prune()\n");
 			return;
+		}
 
 		// From the set of current refs remove all those which have been handled
 		// during last repack(). Only those refs will survive which have been
 		// added or modified since the last repack. Only these can save existing
 		// loose refs from being pruned.
 		Map<String, Ref> newRefs;
-		if (lastPackedRefs == null || lastPackedRefs.isEmpty())
+		if (lastPackedRefs == null || lastPackedRefs.isEmpty()) {
+			log("Getting all refs\n");
 			newRefs = getAllRefs();
+		}
 		else {
 			newRefs = new HashMap<String, Ref>();
 			for (Iterator<Map.Entry<String, Ref>> i = getAllRefs().entrySet()
 					.iterator(); i.hasNext();) {
 				Entry<String, Ref> newEntry = i.next();
+				log("Inspecting ref " + newEntry.getKey() + "/"
+						+ newEntry.getValue() + "\n");
 				Ref old = lastPackedRefs.get(newEntry.getKey());
-				if (!equals(newEntry.getValue(), old))
+				if (!equals(newEntry.getValue(), old)) {
+					log("Ref has changed! Add it to newRefs\n");
 					newRefs.put(newEntry.getKey(), newEntry.getValue());
+				}
 			}
 		}
 
 		if (!newRefs.isEmpty()) {
+			log("Have found new refs!\n");
 			// There are new/modified refs! Check which loose objects are now
 			// referenced by these modified refs (or their reflogentries).
 			// Remove these loose objects
@@ -354,19 +416,29 @@ public class GC {
 			// leave this method.
 			ObjectWalk w = new ObjectWalk(repo);
 			try {
-				for (Ref cr : newRefs.values())
+				for (Ref cr : newRefs.values()) {
+					log("Added ref " + cr.getName()
+							+ " to the start of the revWalk\n");
 					w.markStart(w.parseAny(cr.getObjectId()));
+				}
 				if (lastPackedRefs != null)
-					for (Ref lpr : lastPackedRefs.values())
+					for (Ref lpr : lastPackedRefs.values()) {
+						log("Added ref "
+								+ lpr.getName()
+								+ " whitch was found in lastPackedRefs to uninteresting for revWalkk\n");
 						w.markUninteresting(w.parseAny(lpr.getObjectId()));
+					}
+				log("About to delete all referenced objects from the deletioncandidates\n");
 				removeReferenced(deletionCandidates, w);
 			} finally {
 				w.dispose();
 			}
 		}
 
-		if (deletionCandidates.isEmpty())
+		if (deletionCandidates.isEmpty()) {
+			log("No candidates left\nFinished prune()\n");
 			return;
+		}
 
 		// Since we have not left the method yet there are still
 		// deletionCandidates. Last chance for these objects not to be pruned is
@@ -375,26 +447,39 @@ public class GC {
 		// additional reflog entries not handled during last repack()
 		ObjectWalk w = new ObjectWalk(repo);
 		try {
-			for (Ref ar : getAllRefs().values())
+			log("Checking whether the remaining candidates are in some reflogs\nPreparing a new revwalk for that.\n");
+			for (Ref ar : getAllRefs().values()) {
+				log("Adding all reflog entries for ref " + ar.getName()
+						+ " to revwalk start\n");
 				for (ObjectId id : listRefLogObjects(ar, lastRepackTime))
 					w.markStart(w.parseAny(id));
+			}
 			if (lastPackedRefs != null)
-				for (Ref lpr : lastPackedRefs.values())
+				for (Ref lpr : lastPackedRefs.values()) {
+					log("Adding ref " + lpr.getName()
+							+ " from lastPackedRefs to revwalk uninteresting\n");
 					w.markUninteresting(w.parseAny(lpr.getObjectId()));
+				}
+			log("About to removed candidates which are touched by reflogs\n");
 			removeReferenced(deletionCandidates, w);
 		} finally {
 			w.dispose();
 		}
 
-		if (deletionCandidates.isEmpty())
+		if (deletionCandidates.isEmpty()) {
+			log("No candidates left\nFinished prune()\n");
 			return;
+		}
 
 		// delete all candidates which have survived: these are unreferenced
 		// loose objects
-		for (File f : deletionCandidates.values())
+		for (File f : deletionCandidates.values()) {
+			log("Delete file " + f.getPath() + "\n");
 			f.delete();
+		}
 
 		repo.getObjectDatabase().close();
+		log("Finished prune()\n");
 	}
 
 	/**
@@ -446,18 +531,23 @@ public class GC {
 	 * @throws IOException
 	 */
 	public void packRefs() throws IOException {
+		log("Started packRefs()");
 		Collection<Ref> refs = repo.getAllRefs().values();
+		log("Got all refs");
 		List<String> refsToBePacked = new ArrayList<String>(refs.size());
 		pm.beginTask(JGitText.get().packRefs, refs.size());
 		try {
 			for (Ref ref : refs) {
+				log("Inspecting ref " + ref.getName() + "\n");
 				if (!ref.isSymbolic() && ref.getStorage().isLoose())
 					refsToBePacked.add(ref.getName());
 				pm.update(1);
 			}
+			log("About to pack refs\n");
 			((RefDirectory) repo.getRefDatabase()).pack(refsToBePacked);
 		} finally {
 			pm.endTask();
+			log("Finished packRefs()\n");
 		}
 	}
 
@@ -476,6 +566,7 @@ public class GC {
 	 *             {@link IOException} occurs
 	 */
 	public Collection<PackFile> repack() throws IOException {
+		log("started repack\n");
 		Collection<PackFile> toBeDeleted = repo.getObjectDatabase().getPacks();
 
 		long time = System.currentTimeMillis();
@@ -486,7 +577,10 @@ public class GC {
 		Set<ObjectId> tagTargets = new HashSet<ObjectId>();
 		Set<ObjectId> indexObjects = listNonHEADIndexObjects();
 
+		log("Inspecting refs\n");
 		for (Ref ref : refsBefore.values()) {
+			log("Inspecting ref " + ref.getName() + "\n");
+
 			nonHeads.addAll(listRefLogObjects(ref, 0));
 			if (ref.isSymbolic() || ref.getObjectId() == null)
 				continue;
@@ -498,6 +592,7 @@ public class GC {
 				tagTargets.add(ref.getPeeledObjectId());
 		}
 
+		log("Excluding objects in packs which should be kept\n");
 		List<PackIndex> excluded = new LinkedList<PackIndex>();
 		for (PackFile f : repo.getObjectDatabase().getPacks())
 			if (f.shouldBeKept())
@@ -506,6 +601,7 @@ public class GC {
 		tagTargets.addAll(allHeads);
 		nonHeads.addAll(indexObjects);
 
+		log("About to write first pack\n");
 		List<PackFile> ret = new ArrayList<PackFile>(2);
 		PackFile heads = null;
 		if (!allHeads.isEmpty()) {
@@ -517,15 +613,19 @@ public class GC {
 			}
 		}
 		if (!nonHeads.isEmpty()) {
+			log("About to write second pack\n");
 			PackFile rest = writePack(nonHeads, allHeads, tagTargets, excluded);
 			if (rest != null)
 				ret.add(rest);
 		}
+
 		deleteOldPacks(toBeDeleted, ret, true);
 		prunePacked();
 
 		lastPackedRefs = refsBefore;
 		lastRepackTime = time;
+
+		log("Finished repack\n");
 		return ret;
 	}
 
@@ -848,6 +948,23 @@ public class GC {
 	public void setExpire(Date expire) {
 		this.expire = expire;
 		expireAgeMillis = -1;
+	}
+
+	/**
+	 * Tells gc write a detailed log
+	 *
+	 * @param log
+	 *            The stream into which GC should write log messages. If
+	 *            <code>null</code> is specified logging is turned off. By
+	 *            default logging is turned off
+	 */
+	public void setLogstream(PrintStream log) {
+		this.log = log;
+	}
+
+	private final void log(String s) {
+		if (log != null)
+			log.append(s);
 	}
 
 }

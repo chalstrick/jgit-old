@@ -52,6 +52,7 @@ class Gc extends TextBuiltin {
 	@Override
 	protected void run() throws Exception {
 		GC gc = new GC((FileRepository) db);
+		gc.setLogstream(System.out);
 		gc.setProgressMonitor(new TextProgressMonitor());
 		gc.gc();
 	}
