@@ -253,6 +253,40 @@ public class PlotCommitListTest extends RevWalkTestCase {
 		test.commit(a).lanePos(2).parents();
 	}
 
+	@Test
+	public void testBug368927_repoFromAttachment() throws Exception {
+		final RevCommit a = commit();
+		final RevCommit b = commit(a);
+		final RevCommit c = commit(a);
+		final RevCommit d = commit(c);
+		final RevCommit e = commit(d);
+		final RevCommit f = commit(a);
+		final RevCommit g = commit(f);
+		final RevCommit h = commit(g);
+		final RevCommit i = commit(h);
+		final RevCommit j = commit(g);
+
+		PlotWalk pw = new PlotWalk(db);
+		pw.markStart(pw.lookupCommit(j.getId()));
+		pw.markStart(pw.lookupCommit(i.getId()));
+		pw.markStart(pw.lookupCommit(e.getId()));
+
+		PlotCommitList<PlotLane> pcl = new PlotCommitList<PlotLane>();
+		pcl.source(pw);
+		pcl.fillTo(Integer.MAX_VALUE);
+		CommitListAssert test = new CommitListAssert(pcl);
+		test.commit(j).lanePos(0).parents(g);
+		test.commit(i).lanePos(1).parents(h);
+		test.commit(h).lanePos(1).parents(g);
+		test.commit(g).lanePos(0).parents(f);
+		test.commit(f).lanePos(0).parents(a);
+		test.commit(e).lanePos(1).parents(d);
+		test.commit(d).lanePos(1).parents(c);
+		test.commit(c).lanePos(1).parents(a);
+		test.commit(b).lanePos(1).parents(a);
+		test.commit(a).lanePos(0).parents();
+	}
+
 	// test the history of the egit project between 9fdaf3c1 and e76ad9170f
 	@Test
 	public void testEgitHistory() throws Exception {
