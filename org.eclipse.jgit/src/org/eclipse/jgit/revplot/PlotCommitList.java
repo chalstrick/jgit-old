@@ -117,10 +117,15 @@ public class PlotCommitList<L extends PlotLane> extends
 	@Override
 	protected void enter(final int index, final PlotCommit<L> currCommit) {
 		setupChildren(currCommit);
+		l("entering PlotCommitList.enter: index:", index, ", currCommit",
+				currCommit);
+		l("  current state: ", d(this));
 
 		final int nChildren = currCommit.getChildCount();
-		if (nChildren == 0)
+		if (nChildren == 0) {
+			l("leaving PlotCommitList.enter: Commit had no child. Do nothing");
 			return;
+		}
 
 		if (nChildren == 1 && currCommit.children[0].getParentCount() < 2) {
 			// Only one child, child has only us as their parent.
@@ -130,14 +135,20 @@ public class PlotCommitList<L extends PlotLane> extends
 			if (c.lane == null) {
 				// Hmmph. This child must be the first along this lane.
 				//
+				l("  PlotCommitList.enter: The only of child was not a merge commit and had no lane. Positioned it.");
 				c.lane = nextFreeLane();
 				activeLanes.add(c.lane);
 			}
+
+			// All commits between the current commit and the currently handled
+			// child should get the childs lane as passing lane
 			for (int r = index - 1; r >= 0; r--) {
 				final PlotCommit rObj = get(r);
 				if (rObj == c)
 					break;
 				rObj.addPassingLane(c.lane);
+				l("  PlotCommitList.enter: Commit ", rObj.getName(),
+						" got a new passingLange: ", c.lane);
 			}
 
 			currCommit.lane = c.lane;
@@ -167,75 +178,140 @@ public class PlotCommitList<L extends PlotLane> extends
 
 			for (int i = 0; i < nChildren; i++) {
 				final PlotCommit c = currCommit.children[i];
+				l("  PlotCommitList.enter: processing child: "
+						+ c.getName());
+
 				// don't forget to position all of your children if they are
 				// not already positioned.
 				if (c.lane == null) {
 					c.lane = nextFreeLane();
 					activeLanes.add(c.lane);
-					if (reservedLane != null)
+					l("  Child got a new lane. " + d(c.lane));
+					if (reservedLane != null) {
 						closeLane(c.lane);
-					else
+						l("  Reserved lane was " + reservedLane
+								+ ". Close childs lane!");
+					} else {
 						reservedLane = c.lane;
-				} else if (reservedLane == null && activeLanes.contains(c.lane))
+						l("  PlotCommitList.enter: Reserved lane was null. Set childs lane as the reserverd lane.");
+					}
+				} else if (reservedLane == null && activeLanes.contains(c.lane)) {
+					l("  PlotCommitList.enter: The child was already put on a lane, reserved lane was null and active lane contained childs lane. Set reserved lane to childs lane.");
 					reservedLane = c.lane;
-				else
+				} else {
+					l("  PlotCommitList.enter: Close childs lane");
 					closeLane(c.lane);
+				}
 			}
 
 			// finally all children are processed. We can close the lane on that
 			// position our current commit will be on.
-			if (reservedLane != null)
+			if (reservedLane != null) {
 				closeLane(reservedLane);
+				l("  PlotCommitList.enter: Close the reserved lane ",
+						reservedLane);
+			}
 
-			currCommit.lane = nextFreeLane();
-			activeLanes.add(currCommit.lane);
-
+			putOnNextFreeLane(currCommit);
 			handleBlockedLanes(index, currCommit, nChildren);
 		}
+
+		l("leaving PlotCommitList.enter: state: ", this);
+	}
+
+	private void putOnNextFreeLane(final PlotCommit c) {
+		c.lane = nextFreeLane();
+
+		activeLanes.add(c.lane);
+		l("  PlotCommitList.putOnNextFreeLane: Commit " + c.getName()
+				+ " was put on a new lane " + c.lane);
 	}
 
 	/**
-	 * when connecting a plotcommit to the child make sure that you will not be
+	 * When connecting a plotcommit to the child make sure the plotcommit is not
 	 * located on a lane on which a passed commit is located on. Otherwise we
-	 * would have to draw a line through a commit.
+	 * would have to draw a line through a commit. In such a situation
+	 * reposition the plotcommits lane. (The lanes of the children are
+	 * untouched)
 	 *
 	 * @param index
 	 * @param commit
-	 * @param nChildren
+	 * @param childrenToProcess
 	 */
 	private void handleBlockedLanes(final int index,
-			final PlotCommit<L> commit, final int nChildren) {
-		// take care:
-		int remaining = nChildren;
+			final PlotCommit<L> commit, int childrenToProcess) {
+		l("entering PlotCommitList.handleBlockedLanes: index:"
+				+ index + ", commit:" + commit.getName() + ", nChildren:"
+				+ childrenToProcess);
+
+		// Process all commits on top of the plotcommit until you have processed
+		// it's last child. Collect all positions on which the commits are
+		// located on.
 		BitSet blockedPositions = new BitSet();
-		for (int r = index - 1; r >= 0; r--) {
-			final PlotCommit rObj = get(r);
-			if (commit.isChild(rObj)) {
-				if (--remaining == 0)
-					break;
-			}
-			if (rObj != null) {
-				PlotLane lane = rObj.getLane();
-				if (lane != null)
-					blockedPositions.set(lane.getPosition());
-				rObj.addPassingLane(commit.lane);
+		if (childrenToProcess > 0) {
+			for (int r = index - 1; r >= 0; r--) {
+				final PlotCommit rObj = get(r);
+				l("  PlotCommitList.handleBlockedLanes: processing successor #",
+						r, ": ", rObj);
+				if (commit.isChild(rObj)) {
+					l("  PlotCommitList.handleBlockedLanes: found a child. Decrease remaining to ",
+							childrenToProcess - 1);
+					if (--childrenToProcess == 0)
+						break;
+				}
+				if (rObj != null) {
+					PlotLane lane = rObj.getLane();
+					if (lane != null)
+						blockedPositions.set(lane.getPosition());
+					rObj.addPassingLane(commit.lane);
+					l("  PlotCommitList.handleBlockedLanes: successor's lane was  added to blocking lanes. current commits lane is added to successors passing lanes");
+				}
 			}
 		}
 		// Now let's check whether we have to reposition the lane
 		if (blockedPositions.get(commit.lane.getPosition())) {
+			l("  PlotCommitList.handleBlockedLanes: Commits lane is blocked. Reposition!");
 			int newPos = -1;
 			for (Integer pos : freePositions)
 				if (!blockedPositions.get(pos.intValue())) {
 					newPos = pos.intValue();
+					l("  PlotCommitList.handleBlockedLanes: pos:",
+							pos.intValue(),
+							" is free!");
 					break;
+				} else {
+					l("  PlotCommitList.handleBlockedLanes: pos:", pos,
+							" is NOT free.");
 				}
-			if (newPos == -1)
+			if (newPos == -1) {
 				newPos = positionsAllocated++;
+				l("  PlotCommitList.handleBlockedLanes: new newPos found. Choosed the nex available:",
+						newPos);
+			}
+			l("  PlotCommitList.handleBlockedLanes: Lane "
+					+ commit.lane + " goes to a new location " + newPos);
 			freePositions.add(Integer.valueOf(commit.lane.getPosition()));
 			activeLanes.remove(commit.lane);
 			commit.lane.position = newPos;
 			activeLanes.add(commit.lane);
+			l("Leaving PlotCommitList.handleBlockedLanes: state: ", d(this));
 		}
+	}
+
+	private static void l(Object... args) {
+		for (Object o : args)
+			System.out.print((o == null) ? "(null)" : o.toString());
+		System.out.println();
+	}
+
+	private String d(PlotCommitList<L> o) {
+		return (o == null) ? "(null)" : "positionsAllocated="
+				+ d(o.positionsAllocated) + ", freePositions:"
+				+ d(o.freePositions) + ", activeLanes:" + d(o.activeLanes);
+	}
+
+	private static String d(Object o) {
+		return (o == null) ? "(null)" : o.toString();
 	}
 
 	private void closeLane(PlotLane lane) {
