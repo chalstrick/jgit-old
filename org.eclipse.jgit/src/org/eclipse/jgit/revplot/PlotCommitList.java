@@ -136,7 +136,7 @@ public class PlotCommitList<L extends PlotLane> extends
 				// Hmmph. This child must be the first along this lane.
 				//
 				l("  PlotCommitList.enter: The only of child was not a merge commit and had no lane. Positioned it.");
-				c.lane = nextFreeLane();
+				c.lane = createLaneOnFreePosition();
 				activeLanes.add(c.lane);
 			}
 
@@ -184,7 +184,7 @@ public class PlotCommitList<L extends PlotLane> extends
 				// don't forget to position all of your children if they are
 				// not already positioned.
 				if (c.lane == null) {
-					c.lane = nextFreeLane();
+					c.lane = createLaneOnFreePosition();
 					activeLanes.add(c.lane);
 					l("  Child got a new lane. " + d(c.lane));
 					if (reservedLane != null) {
@@ -220,7 +220,7 @@ public class PlotCommitList<L extends PlotLane> extends
 	}
 
 	private void putOnNextFreeLane(final PlotCommit c) {
-		c.lane = nextFreeLane();
+		c.lane = createLaneOnFreePosition();
 
 		activeLanes.add(c.lane);
 		l("  PlotCommitList.putOnNextFreeLane: Commit " + c.getName()
@@ -321,13 +321,14 @@ public class PlotCommitList<L extends PlotLane> extends
 		}
 	}
 
+	@SuppressWarnings("static-method")
 	private void setupChildren(final PlotCommit<L> currCommit) {
 		final int nParents = currCommit.getParentCount();
 		for (int i = 0; i < nParents; i++)
 			((PlotCommit) currCommit.getParent(i)).addChild(currCommit);
 	}
 
-	private PlotLane nextFreeLane() {
+	private PlotLane createLaneOnFreePosition() {
 		final PlotLane p = createLane();
 		if (freePositions.isEmpty()) {
 			p.position = positionsAllocated++;
