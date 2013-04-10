@@ -136,7 +136,7 @@ public class PlotCommitListTest extends RevWalkTestCase {
 		test.commit(d).lanePos(0).parents(b, c);
 		test.commit(c).lanePos(1).parents(a);
 		test.commit(b).lanePos(0).parents(a);
-		test.commit(a).lanePos(1).parents();
+		test.commit(a).lanePos(0).parents();
 		test.noMoreCommits();
 	}
 
