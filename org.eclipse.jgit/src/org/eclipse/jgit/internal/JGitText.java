@@ -58,7 +58,6 @@ public class JGitText extends TranslationBundle {
 	public static JGitText get() {
 		return NLS.getBundleFor(JGitText.class);
 	}
-
 	// @formatter:off
 	/***/ public String abbreviationLengthMustBeNonNegative;
 	/***/ public String abortingRebase;
@@ -524,6 +523,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String sourceRefDoesntResolveToAnyObject;
 	/***/ public String sourceRefNotSpecifiedForRefspec;
 	/***/ public String squashCommitNotUpdatingHEAD;
+	/***/ public String sslKeyAndsslCertMustBeDefined;
 	/***/ public String staleRevFlagsOn;
 	/***/ public String startingReadStageWithoutWrittenRequestDataPendingIsNotSupported;
 	/***/ public String stashApplyConflict;

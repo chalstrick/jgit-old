@@ -54,6 +54,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.net.URI;
 import java.security.KeyStore;
+import java.security.KeyStore.PrivateKeyEntry;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +93,7 @@ import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.eclipse.jgit.util.CryptoUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -108,22 +114,23 @@ public class HttpClientTests extends HttpTestCase {
 
 	private URIish smartAuthClientCertURI;
 
-	private static KeyStore keyStore = null;
+	private static File goodServerKeystoreFile = null;
 
-	private static File ksFile = null;
+	// private static File badServerKeystoreFile = null;
 
 	private static Map<String, File> resouceFiles = new HashMap<String, File>();
 
-	final static String[] certFiles = { "bad_certificate_selfSigned.pem",
-			"bad_certificate_signedByCA.pem", "ca_certificate_selfSigned.pem",
-			"client_certificate_selfSigned.pem",
-			"client_certificate_signedByBad.pem",
+	final static String[] certFiles = { "badbad_certificate_selfSigned.pem",
+			"badbad_certificate_signedByCA.pem",
+			"ca_certificate_selfSigned.pem",
+			"client_certificate_signedByBadbad.pem",
 			"client_certificate_signedByCA.pem",
+			"server_certificate_signedByBadbad.pem",
 			"server_certificate_signedByCA.pem" };
 
 	final static String[] keyFiles = {
-			"bad_privateKey_rsa_nopwd_traditional.der",
-			"ca_privateKey_rsa_nopwd_traditional.der",
+			"badbad_privateKey_rsa_nopwd_traditional.der",
+			"ca_privateKey_rsa_nopwd_pkcs8.pem",
 			"client_privateKey_rsa_nopwd_pkcs8.der",
 			"client_privateKey_rsa_nopwd_pkcs8.pem",
 			"client_privateKey_rsa_nopwd_traditional.der",
@@ -132,7 +139,9 @@ public class HttpClientTests extends HttpTestCase {
 			"client_privateKey_rsa_pwdclient_pkcs8.pem",
 			"client_privateKey_rsa_pwdclient_traditional.der",
 			"client_privateKey_rsa_pwdclient_traditional.pem",
-			"server_privateKey_rsa_nopwd_traditional.der" };
+			"server_privateKey_rsa_nopwd_pkcs8.pem" };
+
+	final static String keyStorePwd = "keyStorePwd";
 
 	@BeforeClass
 	public static void setUpClass() throws Exception {
@@ -150,12 +159,22 @@ public class HttpClientTests extends HttpTestCase {
 			resouceFiles.put(n, f);
 		}
 
-		keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-		keyStore.load(null, "serverKs".toCharArray());
-		ksFile = File.createTempFile("server", ".ks");
-		FileOutputStream fos = new FileOutputStream(ksFile);
+		KeyStore ks = KeyStore.getInstance("jks");
+		ks.load(null, keyStorePwd.toCharArray());
+		Collection<X509Certificate> certs = CryptoUtil
+				.importCertsIntoKeystore(ks,
+				resouceFiles.get("server_certificate_signedByCA.pem"), null);
+		byte[] pkBytes = CryptoUtil.readPrivateKeyBytesFromFile(resouceFiles.get("server_privateKey_rsa_nopwd_pkcs8.pem"));
+		PrivateKey pk = CryptoUtil.decodePKCS8EncodedPrivateKey(pkBytes, null);
+		Certificate certificate = certs.iterator().next();
+		PrivateKeyEntry pke = new KeyStore.PrivateKeyEntry(pk,
+				new Certificate[] { certificate });
+		ks.setEntry("myKey", pke,
+				new KeyStore.PasswordProtection(keyStorePwd.toCharArray()));
+		goodServerKeystoreFile = File.createTempFile("goodSserver", ".ks");
+		FileOutputStream fos = new FileOutputStream(goodServerKeystoreFile);
 		try {
-			keyStore.store(fos, "serverKs".toCharArray());
+			ks.store(fos, keyStorePwd.toCharArray());
 		} finally {
 			fos.close();
 		}
@@ -171,7 +190,8 @@ public class HttpClientTests extends HttpTestCase {
 		super.setUp();
 
 		// We need an SSL connection
-		server.addSslConnector(ksFile.getAbsolutePath(), "serverKs");
+		server.addSslConnector(goodServerKeystoreFile.getAbsolutePath(),
+				keyStorePwd);
 
 		remoteRepository = createTestRepository();
 		remoteRepository.update(master, remoteRepository.commit().create());
@@ -421,11 +441,14 @@ public class HttpClientTests extends HttpTestCase {
 		Repository dst = createBareRepository();
 		StoredConfig config = dst.getConfig();
 		config.setBoolean("http", null, "sslVerify", true);
-		config.setString("http", null, "sslCAInfo",
-				resouceFiles.get("client_certificate_signedByCa.pem")
+		config.setString("http", null, "sslCert",
+				resouceFiles.get("client_certificate_signedByCA.pem")
 						.getAbsolutePath());
 		config.setString("http", null, "sslKey",
 				resouceFiles.get("client_privateKey_rsa_pwdclient_pkcs8.der")
+						.getAbsolutePath());
+		config.setString("http", null, "sslCAInfo",
+				resouceFiles.get("ca_certificate_selfSigned.pem")
 						.getAbsolutePath());
 		config.save();
 		Transport t = Transport.open(dst, dumbAuthClientCertURI);
@@ -479,7 +502,7 @@ public class HttpClientTests extends HttpTestCase {
 		StoredConfig config = dst.getConfig();
 		config.setBoolean("http", null, "sslVerify", true);
 		config.setString("http", null, "sslCAInfo",
-				resouceFiles.get("client_certificate_signedByCa.pem")
+				resouceFiles.get("client_certificate_signedByCA.pem")
 						.getAbsolutePath());
 		config.setString("http", null, "sslKey",
 				resouceFiles.get("client_privateKey_rsa_pwdclient_pkcs8.der")

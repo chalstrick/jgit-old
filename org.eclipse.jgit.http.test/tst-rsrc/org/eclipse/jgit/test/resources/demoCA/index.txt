@@ -1,0 +1,2 @@
+V	150626060706Z		00	unknown	/C=AU/ST=Western/O=Example LTD/OU=ExampleDep/CN=client/emailAddress=client@client.com
+V	150626060706Z		01	unknown	/C=AU/ST=Western/O=Example LTD/OU=ExampleDep/CN=server/emailAddress=server@server.com

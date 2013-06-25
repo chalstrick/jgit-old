@@ -72,6 +72,7 @@ import java.net.URLConnection;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -80,6 +81,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -528,16 +530,30 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		if ("https".equals(u.getProtocol())) {  //$NON-NLS-1$
 			KeyManager[] keyManagers = null;
 			if (http.sslKey != null || http.sslCert != null) {
+				if (http.sslKey == null || http.sslCert == null)
+					throw new IOException(MessageFormat.format(
+							JGitText.get().sslKeyAndsslCertMustBeDefined,
+							http.sslKey, http.sslCert));
 				File sslKeyFile = getFile(http.sslKey, true,
 						JGitText.get().keyFileDoesNotExist);
-				File sslCertFile = getFile(http.sslKey, true,
+				File sslCertFile = getFile(http.sslCert, true,
 						JGitText.get().certFileDoesNotExist);
+				Collection<X509Certificate> certs = null;
+				try {
+					certs = CryptoUtil
+							.readCertificatesFromSingleFile(sslCertFile);
+				} catch (CertificateException e1) {
+					IOException ioe = new IOException(MessageFormat.format(
+							JGitText.get().certFileDoesNotExist, http.sslCert));
+					ioe.initCause(e1);
+					throw ioe;
+				}
 				try {
 					// first try to read the keys without password. If this
 					// fails, try again and ask for a password
-					keyManagers = CryptoUtil.createKeyManagers(sslKeyFile,
-							sslCertFile,
-							null);
+					keyManagers = CryptoUtil.createKeyManagers(CryptoUtil.readPKCS8EncodedPrivateKey(sslKeyFile, null),
+							certs.toArray(new X509Certificate[certs.size()]),
+							null, "TransportHttp");
 				} catch (Exception e) {
 					CertPassword certPasswordItem = new CertPassword(
 							http.sslKey);
@@ -546,8 +562,11 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 						credentialsProvider
 								.get(new URIish(u), certPasswordItem);
 					try {
-						keyManagers = CryptoUtil.createKeyManagers(sslKeyFile,
-								sslCertFile, certPasswordItem.getValue());
+						keyManagers = CryptoUtil.createKeyManagers(CryptoUtil
+								.readPKCS8EncodedPrivateKey(sslKeyFile,
+										certPasswordItem.getValue()), certs
+								.toArray(new X509Certificate[certs.size()]),
+								certPasswordItem.getValue(), "TransportHttp");
 					} catch (GeneralSecurityException gse) {
 						IOException ioe = new IOException();
 						ioe.initCause(gse);
@@ -558,17 +577,19 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 			TrustManager[] trustManagers = null;
 			if (http.sslCAInfo != null || http.sslCAPath != null) {
-				File sslCAInfoFile=null;
-				if (http.sslCAInfo != null) {
-					sslCAInfoFile = getFile(http.sslCAInfo, true, JGitText.get().caInfoDoesNotExist);
-				}
-				File sslCAPathFile=null;
-				if (http.sslCAPath != null) {
-					sslCAPathFile = getFile(http.sslCAPath, true, JGitText.get().caPathDoesNotExist);
-				}
 				try {
-					trustManagers = CryptoUtil.createTrustManagers(
-							sslCAInfoFile, sslCAPathFile);
+					Collection<X509Certificate> certs = new LinkedList<X509Certificate>();
+					if (http.sslCAInfo != null)
+						certs.addAll(CryptoUtil
+								.readCertificatesFromSingleFile(getFile(
+										http.sslCAInfo, true,
+										JGitText.get().caInfoDoesNotExist)));
+					if (http.sslCAPath != null)
+						certs.addAll(CryptoUtil
+								.readCertificatesFromFolder(getFile(http.sslCAPath, true,
+										JGitText.get().caPathDoesNotExist)));
+					trustManagers = CryptoUtil.createTrustManagers(certs,
+							"httpOpen");
 				} catch (GeneralSecurityException gse) {
 					IOException ioe = new IOException();
 					ioe.initCause(gse);

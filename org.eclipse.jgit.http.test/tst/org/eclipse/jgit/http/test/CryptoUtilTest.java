@@ -49,10 +49,9 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
-import java.util.LinkedList;
 
 import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.RepositoryTestCase;
@@ -66,15 +65,12 @@ import org.junit.Test;
 public class CryptoUtilTest {
 	private final File trash = new File(new File("target"), "trash");
 
-	final String[] certFiles = { "bad_certificate_selfSigned.pem",
-			"bad_certificate_signedByCA.pem", "ca_certificate_selfSigned.pem",
-			"client_certificate_selfSigned.pem",
-			"client_certificate_signedByBad.pem",
+	final String[] certFiles = { "client_certificate_selfSigned.pem",
 			"client_certificate_signedByCA.pem",
 			"server_certificate_signedByCA.pem" };
 
-	final String[] keyFiles = { "bad_privateKey_rsa_nopwd_traditional.der",
-			"ca_privateKey_rsa_nopwd_traditional.der",
+	final String[] keyFiles = { "badbad_privateKey_rsa_nopwd_pkcs8.pem",
+			"ca_privateKey_rsa_nopwd_pkcs8.pem",
 			"client_privateKey_rsa_nopwd_pkcs8.der",
 			"client_privateKey_rsa_nopwd_pkcs8.pem",
 			"client_privateKey_rsa_nopwd_traditional.der",
@@ -83,7 +79,7 @@ public class CryptoUtilTest {
 			"client_privateKey_rsa_pwdclient_pkcs8.pem",
 			"client_privateKey_rsa_pwdclient_traditional.der",
 			"client_privateKey_rsa_pwdclient_traditional.pem",
-			"server_privateKey_rsa_nopwd_traditional.der" };
+			"server_privateKey_rsa_nopwd_pkcs8.pem" };
 
 	@Before
 	public void setUp() throws Exception {
@@ -103,34 +99,12 @@ public class CryptoUtilTest {
 
 	@Test
 	public void testLoadingCerts() throws GeneralSecurityException, IOException {
-		Collection<Certificate> certs = new LinkedList<Certificate>();
-
-		CryptoUtil.importCertificatesFromSingleFile(certs, new File(trash,
-				"bad_certificate_selfSigned.pem"));
-		assertEquals(1, certs.size());
-		certs.clear();
-		CryptoUtil.importCertificatesFromSingleFile(certs, new File(trash,
-				"bad_certificate_signedByCA.pem"));
-		assertEquals(1, certs.size());
-		certs.clear();
-		CryptoUtil.importCertificatesFromSingleFile(certs, new File(trash,
-				"ca_certificate_selfSigned.pem"));
-		assertEquals(1, certs.size());
-		certs.clear();
-		CryptoUtil.importCertificatesFromSingleFile(certs, new File(trash,
-				"client_certificate_selfSigned.pem"));
-		assertEquals(1, certs.size());
-		certs.clear();
-		CryptoUtil.importCertificatesFromSingleFile(certs, new File(trash,
-				"client_certificate_signedByBad.pem"));
-		assertEquals(1, certs.size());
-		certs.clear();
-		CryptoUtil.importCertificatesFromSingleFile(certs, new File(trash,
-				"client_certificate_signedByCA.pem"));
-		assertEquals(1, certs.size());
-		certs.clear();
-		CryptoUtil.importCertificatesFromSingleFile(certs, new File(trash,
-				"server_certificate_signedByCA.pem"));
+		for (String n : certFiles) {
+			assertEquals(
+					1,
+					CryptoUtil.readCertificatesFromSingleFile(
+							new File(trash, n)).size());
+		}
 	}
 
 	@Test
@@ -140,39 +114,33 @@ public class CryptoUtilTest {
 		folder.mkdirs();
 		File wrongFile = new File(trash, "file");
 		wrongFile.createNewFile();
-		Collection<Certificate> certs = new LinkedList<Certificate>();
 
 		// read from an empty folder
-		CryptoUtil.importCertificatesFromFolder(certs, folder);
-		assertEquals(0, certs.size());
+		assertEquals(0, CryptoUtil.readCertificatesFromFolder(folder).size());
 
 		// copy two good files to folder
 		RepositoryTestCase.copyFile(new File(trash,
-				"bad_certificate_selfSigned.pem"), new File(folder,
-				"bad_certificate_selfSigned.pem"));
+				"client_certificate_selfSigned.pem"), new File(folder,
+				"client_certificate_selfSigned.pem"));
 		RepositoryTestCase.copyFile(new File(trash,
 				"ca_certificate_selfSigned.pem"), new File(folder,
 				"ca_certificate_selfSigned.pem"));
-		certs.clear();
-		CryptoUtil.importCertificatesFromFolder(certs, folder);
-		assertEquals(2, certs.size());
+		assertEquals(2, CryptoUtil.readCertificatesFromFolder(folder).size());
 
 		// add a bad file to folder
-		certs.clear();
 		RepositoryTestCase.copyFile(new File(trash,
 				"client_privateKey_rsa_nopwd_pkcs8.der"), new File(folder,
 				"client_privateKey_rsa_nopwd_pkcs8.der"));
 		try {
-			CryptoUtil.importCertificatesFromFolder(certs, folder);
+			CryptoUtil.readCertificatesFromFolder(folder);
 			fail("Didn't get the expected exception when reading from a dir containing wrong files");
 		} catch (CertificateException e) {
 			// This exception is expected
 		}
 
 		// try to read from a file instead of a folder
-		certs.clear();
 		try {
-			CryptoUtil.importCertificatesFromFolder(certs, wrongFile);
+			CryptoUtil.readCertificatesFromFolder(wrongFile);
 			fail("Didn't get the expected exception when reading from a file instead of a folder");
 		} catch (IOException e) {
 			// This exception is expected
@@ -182,28 +150,53 @@ public class CryptoUtilTest {
 
 	@Test
 	public void testLoadingKeys() throws IOException, GeneralSecurityException {
-		assertNotNull(CryptoUtil.loadPKCS8EncodedPrivateKey(IO
-				.readFully(new File(trash,
+		assertNotNull(CryptoUtil.decodePKCS8EncodedPrivateKey(CryptoUtil
+				.readPrivateKeyBytesFromFile(new File(trash,
 						"client_privateKey_rsa_nopwd_pkcs8.der")), null));
-		assertNotNull(CryptoUtil.loadPKCS8EncodedPrivateKey(CryptoUtil
-				.readPrivateKeyFromPEM(new File(trash,
+		assertNotNull(CryptoUtil.decodePKCS8EncodedPrivateKey(CryptoUtil
+				.readPrivateKeyBytesFromFile(new File(trash,
 						"client_privateKey_rsa_nopwd_pkcs8.pem")), null));
-		assertNotNull(CryptoUtil.loadPKCS8EncodedPrivateKey(IO
+		assertNotNull(CryptoUtil.decodePKCS8EncodedPrivateKey(IO
 				.readFully(new File(trash,
 						"client_privateKey_rsa_pwdclient_pkcs8.der")), "client"
 				.toCharArray()));
-		assertNotNull(CryptoUtil.loadPKCS8EncodedPrivateKey(CryptoUtil
-				.readPrivateKeyFromPEM(new File(trash,
+		assertNotNull(CryptoUtil.decodePKCS8EncodedPrivateKey(CryptoUtil
+				.readPrivateKeyBytesFromFile(new File(trash,
 						"client_privateKey_rsa_pwdclient_pkcs8.pem")), "client"
 				.toCharArray()));
 		try {
-			assertNotNull(CryptoUtil.loadPKCS8EncodedPrivateKey(CryptoUtil
-					.readPrivateKeyFromPEM(new File(trash,
+			assertNotNull(CryptoUtil.decodePKCS8EncodedPrivateKey(CryptoUtil
+					.readPrivateKeyBytesFromFile(new File(trash,
 							"client_privateKey_rsa_pwdclient_pkcs8.pem")),
 					"client2".toCharArray()));
 			fail("Didn't get the expected exception for a wrong passphrase");
 		} catch (GeneralSecurityException e) {
 			// This exception is expected
 		}
+
+		// too bad: we can't read keys in openssl standard format. Check this
+		try {
+			assertNotNull(CryptoUtil.decodePKCS8EncodedPrivateKey(CryptoUtil
+					.readPrivateKeyBytesFromFile(new File(trash,
+							"client_privateKey_rsa_nopwd_traditional.pem")),
+					null));
+			fail("Didn't get the expected exception for a key in traditional format");
+		} catch (GeneralSecurityException e) {
+			// This exception is expected
+		}
+	}
+
+	@Test
+	public void testCreatingKeyManager() throws IOException,
+			GeneralSecurityException {
+		Collection<X509Certificate> certs = CryptoUtil
+				.readCertificatesFromSingleFile(new File(trash,
+						"client_certificate_signedByCA.pem"));
+		X509Certificate[] certArray = certs.toArray(new X509Certificate[certs
+				.size()]);
+		CryptoUtil.createKeyManagers(CryptoUtil.decodePKCS8EncodedPrivateKey(
+				CryptoUtil.readPrivateKeyBytesFromFile(new File(trash,
+						"client_privateKey_rsa_nopwd_pkcs8.pem")), null),
+				certArray, "kspwd".toCharArray(), "Test");
 	}
 }

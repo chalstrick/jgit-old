@@ -47,11 +47,15 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,7 +74,9 @@ import org.eclipse.jetty.server.ssl.SslSelectChannelConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.util.security.Constraint;
 import org.eclipse.jetty.util.security.Password;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jgit.transport.URIish;
+import org.eclipse.jgit.util.CryptoUtil;
 
 /**
  * Tiny web application server for unit testing.
@@ -135,20 +141,33 @@ public class AppServer {
 	 *            full path of the key store (and trust store)
 	 * @param ksPassword
 	 *            password to access the key store (and trust store)
+	 * @throws GeneralSecurityException
+	 * @throws IOException
+	 * @throws FileNotFoundException
 	 */
-	public void addSslConnector(final String ksPath, final String ksPassword) {
+	public void addSslConnector(final String ksPath, final String ksPassword)
+			throws GeneralSecurityException, IOException {
 		assertNotYetSetUp();
-		sslConnector = new SslSelectChannelConnector();
+
+		KeyStore ks = KeyStore.getInstance("jks");
+		FileInputStream fis = new FileInputStream(ksPath);
+		ks.load(fis, (ksPassword == null) ? null
+				: ksPassword.toCharArray());
+		fis.close();
+
+		System.out.println("Appserver adds a ssl connector with keystore: ks: "
+				+ CryptoUtil.toString(ks, (ksPassword == null) ? null
+						: ksPassword.toCharArray()));
+		SslContextFactory sslContextFactory = new SslContextFactory(ksPath);
+		sslContextFactory.setKeyStorePassword(ksPassword);
+		sslContextFactory.setWantClientAuth(true);
+		sslContextFactory.setNeedClientAuth(true);
+
+		sslConnector = new SslSelectChannelConnector(sslContextFactory);
 		sslConnector.setHost(connector.getHost());
-		sslConnector.setKeystore(ksPath);
-		sslConnector.setPassword(ksPassword);
-		sslConnector.setKeyPassword(ksPassword);
-		sslConnector.setTruststore(ksPath);
-		sslConnector.setTrustPassword(ksPassword);
-		sslConnector.setWantClientAuth(false);
-		sslConnector.setNeedClientAuth(true);
 
 		server.addConnector(sslConnector);
+
 	}
 
 	/**
