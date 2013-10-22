@@ -732,6 +732,13 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 *         metadata differ
 	 */
 	public MetadataDiff compareMetadata(DirCacheEntry entry) {
+		System.out
+				.printf("compareMetadata: path:%s, isAssumeValid:%b, isUpdateNeeded:%b, isSmuged:%b, isModeDifferent:%b, entry.getLastModified():%d, getEntryLastModified():%d\n",
+						entry.getPathString(), entry.isAssumeValid(),
+						entry.isUpdateNeeded(), entry.isSmudged(),
+						isModeDifferent(entry.getRawMode()),
+						entry.getLastModified(), getEntryLastModified());
+
 		if (entry.isAssumeValid())
 			return MetadataDiff.EQUAL;
 
@@ -777,7 +784,10 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @return true if content is most likely different.
 	 */
 	public boolean isModified(DirCacheEntry entry, boolean forceContentCheck) {
+		System.out.println("WorkingTreeIterator.isModified(): called for "
+				+ entry.getPathString());
 		MetadataDiff diff = compareMetadata(entry);
+		System.out.println("compareMetadata returned:" + diff.toString());
 		switch (diff) {
 		case DIFFER_BY_TIMESTAMP:
 			if (forceContentCheck)
