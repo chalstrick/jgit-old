@@ -394,58 +394,9 @@ public class IndexDiff {
 			WorkingTreeIterator workingTreeIterator = treeWalk.getTree(WORKDIR,
 					WorkingTreeIterator.class);
 
-			if (dirCacheIterator != null) {
-				final DirCacheEntry dirCacheEntry = dirCacheIterator
-						.getDirCacheEntry();
-				if (dirCacheEntry != null) {
-					int stage = dirCacheEntry.getStage();
-					if (stage > 0) {
-						String path = treeWalk.getPathString();
-						addConflict(path, stage);
-						continue;
-					}
-				}
-			}
-
-			if (treeIterator != null) {
-				if (dirCacheIterator != null) {
-					if (!treeIterator.idEqual(dirCacheIterator)
-							|| treeIterator.getEntryRawMode()
-							!= dirCacheIterator.getEntryRawMode()) {
-						// in repo, in index, content diff => changed
-						changed.add(treeWalk.getPathString());
-					}
-				} else {
-					// in repo, not in index => removed
-					removed.add(treeWalk.getPathString());
-					if (workingTreeIterator != null)
-						untracked.add(treeWalk.getPathString());
-				}
-			} else {
-				if (dirCacheIterator != null) {
-					// not in repo, in index => added
-					added.add(treeWalk.getPathString());
-				} else {
-					// not in repo, not in index => untracked
-					if (workingTreeIterator != null
-							&& !workingTreeIterator.isEntryIgnored()) {
-						untracked.add(treeWalk.getPathString());
-					}
-				}
-			}
-
-			if (dirCacheIterator != null) {
-				if (workingTreeIterator == null) {
-					// in index, not in workdir => missing
-					missing.add(treeWalk.getPathString());
-				} else {
-					if (workingTreeIterator.isModified(
-							dirCacheIterator.getDirCacheEntry(), true)) {
-						// in index, in workdir, content differs => modified
-						modified.add(treeWalk.getPathString());
-					}
-				}
-			}
+			diffSinglePath(treeWalk.getPathString(), treeIterator,
+					dirCacheIterator, workingTreeIterator, conflicts, changed,
+					removed, untracked, added, missing, modified);
 		}
 
 		// consume the remaining work
@@ -461,16 +412,88 @@ public class IndexDiff {
 			return true;
 	}
 
-	private void addConflict(String path, int stage) {
-		StageState existingStageStates = conflicts.get(path);
-		byte stageMask = 0;
-		if (existingStageStates != null)
-			stageMask |= existingStageStates.getStageMask();
-		// stage 1 (base) should be shifted 0 times
-		int shifts = stage - 1;
-		stageMask |= (1 << shifts);
-		StageState stageState = StageState.fromMask(stageMask);
-		conflicts.put(path, stageState);
+	public static void
+	/**
+	 * @param pathString
+	 * @param treeIterator
+	 * @param dirCacheIterator
+	 * @param workingTreeIterator
+	 * @param conf
+	 * @param chang
+	 * @param remov
+	 * @param untra
+	 * @param adde
+	 * @param missi
+	 * @param modif
+	 * @throws IOException
+	 * @since 3.3
+	 */
+	static public void diffSinglePath(String pathString,
+			AbstractTreeIterator treeIterator,
+			DirCacheIterator dirCacheIterator,
+			WorkingTreeIterator workingTreeIterator,
+			Map<String, StageState> conf, Set<String> chang,
+			Set<String> remov, Set<String> untra, Set<String> adde,
+			Set<String> missi, Set<String> modif) throws IOException {
+		if (dirCacheIterator != null) {
+			final DirCacheEntry dirCacheEntry = dirCacheIterator
+					.getDirCacheEntry();
+			if (dirCacheEntry != null) {
+				int stage = dirCacheEntry.getStage();
+				if (stage > 0) {
+					StageState existingStageStates = conf.get(pathString);
+					byte stageMask = 0;
+					if (existingStageStates != null)
+						stageMask |= existingStageStates.getStageMask();
+					// stage 1 (base) should be shifted 0 times
+					int shifts = stage - 1;
+					stageMask |= (1 << shifts);
+					StageState stageState = StageState.fromMask(stageMask);
+					conf.put(pathString, stageState);
+					return;
+				}
+			}
+		}
+
+		if (treeIterator != null) {
+			if (dirCacheIterator != null) {
+				if (!treeIterator.idEqual(dirCacheIterator)
+						|| treeIterator.getEntryRawMode() != dirCacheIterator
+								.getEntryRawMode()) {
+					// in repo, in index, content diff => changed
+					chang.add(pathString);
+				}
+			} else {
+				// in repo, not in index => removed
+				remov.add(pathString);
+				if (workingTreeIterator != null)
+					untra.add(pathString);
+			}
+		} else {
+			if (dirCacheIterator != null) {
+				// not in repo, in index => added
+				adde.add(pathString);
+			} else {
+				// not in repo, not in index => untracked
+				if (workingTreeIterator != null
+						&& !workingTreeIterator.isEntryIgnored()) {
+					untra.add(pathString);
+				}
+			}
+		}
+
+		if (dirCacheIterator != null) {
+			if (workingTreeIterator == null) {
+				// in index, not in workdir => missing
+				missi.add(pathString);
+			} else {
+				if (workingTreeIterator.isModified(
+						dirCacheIterator.getDirCacheEntry(), true)) {
+					// in index, in workdir, content differs => modified
+					modif.add(pathString);
+				}
+			}
+		}
 	}
 
 	/**
