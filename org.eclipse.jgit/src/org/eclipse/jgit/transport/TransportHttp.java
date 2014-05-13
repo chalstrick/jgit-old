@@ -518,6 +518,14 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpConnection conn = connectionFactory.create(u, proxy);
 
+		System.out
+				.println("Chris02: TransportHttp.httpOpen(): Opened a connection to "
+						+ u
+						+ ". conn="
+						+ conn
+						+ ". code(conn): "
+						+ System.identityHashCode(conn));
+
 		if (!http.sslVerify && "https".equals(u.getProtocol())) { //$NON-NLS-1$
 			disableSslVerify(conn);
 		}

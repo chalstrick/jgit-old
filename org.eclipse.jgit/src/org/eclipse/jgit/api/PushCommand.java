@@ -62,6 +62,7 @@ import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.pack.PackConfig;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
@@ -121,6 +122,8 @@ public class PushCommand extends
 			org.eclipse.jgit.api.errors.TransportException {
 		checkCallable();
 
+		System.out.println("Chris01: PushCommand.call()");
+
 		ArrayList<PushResult> pushResults = new ArrayList<PushResult>(3);
 
 		try {
@@ -151,6 +154,20 @@ public class PushCommand extends
 
 				final Collection<RemoteRefUpdate> toPush = transport
 						.findRemoteRefUpdatesFor(refSpecs);
+
+				PackConfig packConfig = transport.getPackConfig();
+				System.out.println("Chris04: getBigFileThreshold:"
+						+ packConfig.getBigFileThreshold()
+						+ ", getCompressionLevel:"
+						+ packConfig.getCompressionLevel()
+						+ ", getDeltaCacheLimit:"
+						+ packConfig.getDeltaCacheLimit()
+						+ ", getDeltaCacheSize:"
+						+ packConfig.getDeltaCacheSize()
+						+ ", getDeltaSearchMemoryLimit:"
+						+ packConfig.getDeltaSearchMemoryLimit()
+						+ ", getDeltaSearchWindowSize:"
+						+ packConfig.getDeltaSearchWindowSize());
 
 				try {
 					PushResult result = transport.push(monitor, toPush, out);
