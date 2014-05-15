@@ -3,10 +3,11 @@ package org.eclipse.jgit.transport.http;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PrintStream;
 import java.net.MalformedURLException;
 import java.net.Proxy;
 import java.net.URL;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.util.io.TeeInputStream;
 import org.eclipse.jgit.util.io.TeeOutputStream;
@@ -16,48 +17,57 @@ import org.eclipse.jgit.util.io.TeeOutputStream;
  *
  */
 public class LoggingJDKHttpConnection extends JDKHttpConnection {
-	private PrintStream log;
+	private static final Logger log = Logger
+			.getLogger(LoggingJDKHttpConnection.class.getName());
+
+	private static final Logger logHD = Logger.getLogger(HexDumpLogStream.class
+			.getName());
+
 
 	/**
-	 * @param log
 	 * @param url
 	 * @throws MalformedURLException
 	 * @throws IOException
 	 */
-	protected LoggingJDKHttpConnection(PrintStream log, URL url)
+	protected LoggingJDKHttpConnection(URL url)
 			throws MalformedURLException, IOException {
 		super(url);
-		this.log = log;
-		log.println("Created new JDKHttpConnection to url:" + url); //$NON-NLS-1$
+		log.log(Level.INFO, "Created new JDKHttpConnection to url: {0}",
+				new Object[] { url });
 	}
 
 	/**
-	 * @param log
 	 * @param url
 	 * @param proxy
 	 * @throws MalformedURLException
 	 * @throws IOException
 	 */
-	protected LoggingJDKHttpConnection(PrintStream log, URL url, Proxy proxy)
+	protected LoggingJDKHttpConnection(URL url, Proxy proxy)
 			throws MalformedURLException, IOException {
 		super(url, proxy);
-		this.log = log;
-		log.println("Created new JDKHttpConnection to url:" + url); //$NON-NLS-1$
+		log.log(Level.INFO,
+				"Created new JDKHttpConnection to url: {0}, proxy: {1}",
+				new Object[] { url, proxy });
 	}
 
 	@Override
 	public InputStream getInputStream() throws IOException {
-		log.println("\n=====\nLoggingJDKHttpConnection(" //$NON-NLS-1$
-				+ System.identityHashCode(this) + ").getInputStream()"); //$NON-NLS-1$
-		return new TeeInputStream(super.getInputStream(),
-				new HexDumpOutputStream(log));
+		log.entering(getClass().getName(), "getInputStream");
+		if (logHD.isLoggable(Level.INFO))
+			return new TeeInputStream(super.getInputStream(),
+					new HexDumpLogStream(log));
+		else
+			return super.getInputStream();
 	}
 
 	@Override
 	public OutputStream getOutputStream() throws IOException {
-		log.println("\n=====\nLoggingJDKHttpConnection(" //$NON-NLS-1$
-				+ System.identityHashCode(this) + ").getOutputStream()"); //$NON-NLS-1$
-		return new TeeOutputStream(super.getOutputStream(),
-				new HexDumpOutputStream(log));
+		log.entering(getClass().getName(), "getOutputStream");
+
+		if (logHD.isLoggable(Level.INFO))
+			return new TeeOutputStream(super.getOutputStream(),
+					new HexDumpLogStream(log));
+		else
+			return super.getOutputStream();
 	}
 }

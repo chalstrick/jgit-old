@@ -50,6 +50,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
@@ -79,6 +81,8 @@ import org.eclipse.jgit.transport.Transport;
  */
 public class PushCommand extends
 		TransportCommand<PushCommand, Iterable<PushResult>> {
+	private static final Logger log = Logger.getLogger(PushCommand.class
+			.getName());
 
 	private String remote = Constants.DEFAULT_REMOTE_NAME;
 
@@ -122,7 +126,7 @@ public class PushCommand extends
 			org.eclipse.jgit.api.errors.TransportException {
 		checkCallable();
 
-		System.out.println("Chris01: PushCommand.call()");
+		log.entering(getClass().getName(), "call");
 
 		ArrayList<PushResult> pushResults = new ArrayList<PushResult>(3);
 
@@ -156,18 +160,14 @@ public class PushCommand extends
 						.findRemoteRefUpdatesFor(refSpecs);
 
 				PackConfig packConfig = transport.getPackConfig();
-				System.out.println("Chris04: getBigFileThreshold:"
-						+ packConfig.getBigFileThreshold()
-						+ ", getCompressionLevel:"
-						+ packConfig.getCompressionLevel()
-						+ ", getDeltaCacheLimit:"
-						+ packConfig.getDeltaCacheLimit()
-						+ ", getDeltaCacheSize:"
-						+ packConfig.getDeltaCacheSize()
-						+ ", getDeltaSearchMemoryLimit:"
-						+ packConfig.getDeltaSearchMemoryLimit()
-						+ ", getDeltaSearchWindowSize:"
-						+ packConfig.getDeltaSearchWindowSize());
+				log.log(Level.INFO,
+						"bigFileThreshold: {0}, compressionLevel: {1}, deltaCacheLimit: {2}, deltaCacheSize: {3}, deltaSearchMemoryLimit: {4}, deltaSearchWindowSize: {5}",
+						new Object[] { packConfig.getBigFileThreshold(),
+								packConfig.getCompressionLevel(),
+								packConfig.getDeltaCacheLimit(),
+								packConfig.getDeltaCacheSize(),
+								packConfig.getDeltaSearchMemoryLimit(),
+								packConfig.getDeltaSearchWindowSize() });
 
 				try {
 					PushResult result = transport.push(monitor, toPush, out);

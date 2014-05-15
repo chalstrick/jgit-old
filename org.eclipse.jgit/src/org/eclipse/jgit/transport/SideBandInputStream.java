@@ -51,6 +51,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Writer;
 import java.text.MessageFormat;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -78,6 +80,9 @@ import org.eclipse.jgit.util.RawParseUtils;
  * @see SideBandOutputStream
  */
 class SideBandInputStream extends InputStream {
+	private static final Logger log = Logger
+			.getLogger(SideBandInputStream.class.getName());
+
 	private static final String PFX_REMOTE = JGitText.get().prefixRemote;
 
 	static final int CH_DATA = 1;
@@ -176,9 +181,18 @@ class SideBandInputStream extends InputStream {
 				eof = true;
 				throw new TransportException(PFX_REMOTE + readString(available));
 			default:
-				throw new PackProtocolException(
+				PackProtocolException exception = new PackProtocolException(
 						MessageFormat.format(JGitText.get().invalidChannel,
 								Integer.valueOf(channel)));
+				log.log(Level.SEVERE,
+						"received data on wrong channel. Will read rest of data",
+						exception);
+				while (rawIn.read() != -1)
+					;
+				log.log(Level.SEVERE,
+						"read data from wrong channel. Will throw exception",
+						exception);
+				throw exception;
 			}
 		}
 	}

@@ -63,6 +63,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.FileHandler;
+import java.util.logging.Formatter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
@@ -102,6 +108,25 @@ import org.eclipse.jgit.util.io.SafeBufferedOutputStream;
  */
 public abstract class Repository {
 	private static final ListenerList globalListeners = new ListenerList();
+
+	static {
+		Logger jgitL = Logger.getLogger("org.eclipse.jgit");
+		FileHandler fileTxt;
+		try {
+			fileTxt = new FileHandler("C:/temp/jgit_log.txt");
+			Formatter formatterTxt = new SimpleFormatter();
+			fileTxt.setFormatter(formatterTxt);
+			jgitL.addHandler(fileTxt);
+			jgitL.addHandler(new ConsoleHandler());
+			jgitL.setLevel(Level.ALL);
+		} catch (SecurityException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 
 	/** @return the global listener list observing all events in this JVM. */
 	public static ListenerList getGlobalListenerList() {

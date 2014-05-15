@@ -48,6 +48,8 @@ package org.eclipse.jgit.transport;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.MessageFormat;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.internal.JGitText;
@@ -67,6 +69,8 @@ import org.eclipse.jgit.util.RawParseUtils;
  * against the underlying InputStream.
  */
 public class PacketLineIn {
+	private static final Logger log = Logger.getLogger(PacketLineIn.class
+			.getName());
 	/** Magic return from {@link #readString()} when a flush packet is found. */
 	public static final String END = new StringBuilder(0).toString(); 	/* must not string pool */
 
@@ -136,12 +140,16 @@ public class PacketLineIn {
 	 */
 	public String readString() throws IOException {
 		int len = readLength();
-		if (len == 0)
+		if (len == 0) {
+			log.log(Level.INFO, "readString: len: 0, str: <>");
 			return END;
+		}
 
 		len -= 4; // length header (4 bytes)
-		if (len == 0)
+		if (len == 0) {
+			log.log(Level.INFO, "readString: len: 4, str: <>");
 			return ""; //$NON-NLS-1$
+		}
 
 		byte[] raw;
 		if (len <= lineBuffer.length)
@@ -152,7 +160,10 @@ public class PacketLineIn {
 		IO.readFully(in, raw, 0, len);
 		if (raw[len - 1] == '\n')
 			len--;
-		return RawParseUtils.decode(Constants.CHARSET, raw, 0, len);
+		String decoded = RawParseUtils.decode(Constants.CHARSET, raw, 0, len);
+		log.log(Level.INFO, "readString: len: {0}, str: <{1}>", new Object[] {
+				len, decoded });
+		return decoded;
 	}
 
 	/**
@@ -167,8 +178,10 @@ public class PacketLineIn {
 	 */
 	public String readStringRaw() throws IOException {
 		int len = readLength();
-		if (len == 0)
+		if (len == 0) {
+			log.log(Level.INFO, "readStringRaw: len: 0, str: <>");
 			return END;
+		}
 
 		len -= 4; // length header (4 bytes)
 
@@ -179,7 +192,11 @@ public class PacketLineIn {
 			raw = new byte[len];
 
 		IO.readFully(in, raw, 0, len);
-		return RawParseUtils.decode(Constants.CHARSET, raw, 0, len);
+		String decoded = RawParseUtils.decode(Constants.CHARSET, raw, 0, len);
+		log.log(Level.INFO, "readStringRaw: len: {0}, str: <{1}>",
+				new Object[] { len, decoded });
+
+		return decoded;
 	}
 
 	int readLength() throws IOException {

@@ -42,10 +42,7 @@
  */
 package org.eclipse.jgit.transport.http;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.net.Proxy;
 import java.net.URL;
 
@@ -55,26 +52,11 @@ import java.net.URL;
  * @since 3.3
  */
 public class LoggingJDKHttpConnectionFactory implements HttpConnectionFactory {
-	static File out;
-	static int nr = -1;
-
-	private static File getLogFile() throws IOException {
-		if (nr == -1 || out.length() > 10000000) {
-			nr++;
-			out = new File("C:/Temp/JGitHttpLog_" + (nr%6) + ".bin"); //$NON-NLS-1$ //$NON-NLS-2$
-			out.delete();
-			System.out.println("Http log goes to :" + out.getAbsolutePath());
-		}
-		return out;
-	}
-
 	public HttpConnection create(URL url) throws IOException {
-		return new LoggingJDKHttpConnection(new PrintStream(
-				new FileOutputStream(getLogFile(), true)), url);
+		return new LoggingJDKHttpConnection(url);
 	}
 
 	public HttpConnection create(URL url, Proxy proxy) throws IOException {
-		return new LoggingJDKHttpConnection(new PrintStream(
-				new FileOutputStream(getLogFile(), true)), url, proxy);
+		return new LoggingJDKHttpConnection(url, proxy);
 	}
 }
