@@ -652,7 +652,7 @@ public class DirCacheEntry {
 	public String toString() {
 		return getFileMode() + " " + getLength() + " " + getLastModified()
 				+ " " + getObjectId() + " " + getStage() + " "
-				+ getPathString() + "\n";
+				+ getPathString() + " " + isAssumeValid() + " " + isSmudged() + " " + isUpdateNeeded() + " (mode,length,lastModified,oid,stage,path,assumeValid,smudged,updateNeeded)\n";
 	}
 
 	/**

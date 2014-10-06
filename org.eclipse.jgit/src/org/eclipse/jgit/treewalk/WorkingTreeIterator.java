@@ -751,6 +751,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		if (entry.isUpdateNeeded())
 			return MetadataDiff.DIFFER_BY_METADATA;
 
+//		if (!entry.isSmudged() && !FileMode.GITLINK.equals(current().getMode())
+//				&& entry.getLength() != (int) getEntryLength())
 		if (!entry.isSmudged() && entry.getLength() != (int) getEntryLength())
 			return MetadataDiff.DIFFER_BY_METADATA;
 
@@ -834,7 +836,12 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			ObjectReader reader) throws IOException {
 		if (entry == null)
 			return !FileMode.MISSING.equals(getEntryFileMode());
+		System.out.println("WorkingTreeIterator.isModified("
+				+ entry.getPathString() + ")");
+		System.out.println("DirCacheEntry :" + entry.toString());
+		System.out.println("WorkingTree :" + current().toStringDbg());
 		MetadataDiff diff = compareMetadata(entry);
+		System.out.println(" compareMetadata()=" + diff + ".");
 		switch (diff) {
 		case DIFFER_BY_TIMESTAMP:
 			if (forceContentCheck)
@@ -1055,6 +1062,18 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 		public String toString() {
 			return getMode().toString() + " " + getName(); //$NON-NLS-1$
+		}
+
+		/**
+		 * Use for debugging only !
+		 *
+		 * @return a String describing the workingtree
+		 */
+		@SuppressWarnings("nls")
+		public String toStringDbg() {
+			return getMode().toString() + " " + getName() + " "
+					+ getLastModified() + " " + getLength()
+					+ " (mode,name,lastModified,length)";
 		}
 
 		/**
