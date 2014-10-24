@@ -55,6 +55,8 @@ import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
@@ -70,6 +72,9 @@ import org.eclipse.jgit.util.IO;
 
 /** Creates loose objects in a {@link ObjectDirectory}. */
 class ObjectDirectoryInserter extends ObjectInserter {
+	private static Logger log = Logger.getLogger(ObjectDirectoryInserter.class
+			.getName());
+
 	private final FileObjectDatabase db;
 
 	private final WriteConfig config;
@@ -85,6 +90,7 @@ class ObjectDirectoryInserter extends ObjectInserter {
 	public ObjectId insert(int type, byte[] data, int off, int len)
 			throws IOException {
 		ObjectId id = idFor(type, data, off, len);
+		log.log(Level.FINE, "insert object with id: {0}", id);
 		if (db.has(id)) {
 			return id;
 		} else {
@@ -105,6 +111,7 @@ class ObjectDirectoryInserter extends ObjectInserter {
 			MessageDigest md = digest();
 			File tmp = toTemp(md, type, len, is);
 			ObjectId id = ObjectId.fromRaw(md.digest());
+			log.log(Level.FINE, "insert object with id: {0}", id);
 			return insertOneObject(tmp, id);
 		}
 	}
