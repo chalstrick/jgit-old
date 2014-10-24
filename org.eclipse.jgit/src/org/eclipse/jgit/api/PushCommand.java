@@ -50,6 +50,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
@@ -62,6 +64,7 @@ import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.pack.PackConfig;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
@@ -78,6 +81,8 @@ import org.eclipse.jgit.transport.Transport;
  */
 public class PushCommand extends
 		TransportCommand<PushCommand, Iterable<PushResult>> {
+	private static final Logger log = Logger.getLogger(PushCommand.class
+			.getName());
 
 	private String remote = Constants.DEFAULT_REMOTE_NAME;
 
@@ -151,6 +156,16 @@ public class PushCommand extends
 
 				final Collection<RemoteRefUpdate> toPush = transport
 						.findRemoteRefUpdatesFor(refSpecs);
+
+				PackConfig packConfig = transport.getPackConfig();
+				log.log(Level.FINE,
+						"bigFileThreshold: {0}, compressionLevel: {1}, deltaCacheLimit: {2}, deltaCacheSize: {3}, deltaSearchMemoryLimit: {4}, deltaSearchWindowSize: {5}",
+						new Object[] { packConfig.getBigFileThreshold(),
+								packConfig.getCompressionLevel(),
+								packConfig.getDeltaCacheLimit(),
+								packConfig.getDeltaCacheSize(),
+								packConfig.getDeltaSearchMemoryLimit(),
+								packConfig.getDeltaSearchWindowSize() });
 
 				try {
 					PushResult result = transport.push(monitor, toPush, out);

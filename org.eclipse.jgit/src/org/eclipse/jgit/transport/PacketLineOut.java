@@ -47,6 +47,8 @@ package org.eclipse.jgit.transport;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.lib.Constants;
 
@@ -61,6 +63,9 @@ import org.eclipse.jgit.lib.Constants;
  * against the underlying OutputStream.
  */
 public class PacketLineOut {
+	private static final Logger log = Logger.getLogger(PacketLineOut.class
+			.getName());
+
 	private final OutputStream out;
 
 	private final byte[] lenbuffer;
@@ -117,6 +122,8 @@ public class PacketLineOut {
 		formatLength(packet.length + 4);
 		out.write(lenbuffer, 0, 4);
 		out.write(packet);
+		log.log(Level.FINE, "writePacket: len: {0}, str: <{1}>", new Object[] {
+				packet.length + 4, new String(packet, "UTF-8") });
 	}
 
 	/**

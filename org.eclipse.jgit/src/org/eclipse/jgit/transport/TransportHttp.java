@@ -80,6 +80,8 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -129,6 +131,8 @@ import org.eclipse.jgit.util.io.UnionInputStream;
  */
 public class TransportHttp extends HttpTransport implements WalkTransport,
 		PackTransport {
+	private static final Logger log = Logger.getLogger(TransportHttp.class
+			.getName());
 
 	private static final String SVC_UPLOAD_PACK = "git-upload-pack"; //$NON-NLS-1$
 
@@ -542,6 +546,10 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			throws IOException {
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpConnection conn = connectionFactory.create(u, proxy);
+
+		log.log(Level.FINE,
+				"httpOpen(). Opened a connection to {0}. conn: {1}",
+				new Object[] { u, conn });
 
 		if (!http.sslVerify && "https".equals(u.getProtocol())) { //$NON-NLS-1$
 			disableSslVerify(conn);

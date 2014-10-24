@@ -1,7 +1,5 @@
 /*
- * Copyright (C) 2009, Constantine Plotnikov <constantine.plotnikov@gmail.com>
- * Copyright (C) 2009, JetBrains s.r.o.
- * Copyright (C) 2009, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2010, 2013 Google Inc.
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -43,64 +41,42 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package org.eclipse.jgit.transport;
+package org.eclipse.jgit.util.io;
 
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.transport.http.HttpConnectionFactory;
-import org.eclipse.jgit.transport.http.LoggingJDKHttpConnectionFactory;
+import java.io.IOException;
+import java.io.OutputStream;
 
 /**
- * The base class for transports that use HTTP as underlying protocol. This class
- * allows customizing HTTP connection settings.
  */
-public abstract class HttpTransport extends Transport {
-	/**
-	 * factory for creating HTTP connections
-	 *
-	 * @since 3.3
-	 */
-	protected static HttpConnectionFactory connectionFactory = new LoggingJDKHttpConnectionFactory();
+public class TeeOutputStream extends OutputStream {
+	private OutputStream dest;
+
+	private OutputStream log;
 
 	/**
-	 * @return the {@link HttpConnectionFactory} used to create new connections
-	 * @since 3.3
+	 * @param dest
+	 * @param log
 	 */
-	public static HttpConnectionFactory getConnectionFactory() {
-		return connectionFactory;
+	public TeeOutputStream(OutputStream dest, OutputStream log) {
+		this.dest = dest;
+		this.log = log;
 	}
 
-	/**
-	 * Set the {@link HttpConnectionFactory} to be used to create new
-	 * connections
-	 *
-	 * @param cf
-	 * @since 3.3
-	 */
-	public static void setConnectionFactory(HttpConnectionFactory cf) {
-		connectionFactory = cf;
+	@Override
+	public void write(int b) throws IOException {
+		dest.write(b);
+		log.write(b);
 	}
 
-	/**
-	 * Create a new transport instance.
-	 *
-	 * @param local
-	 *            the repository this instance will fetch into, or push out of.
-	 *            This must be the repository passed to
-	 *            {@link #open(Repository, URIish)}.
-	 * @param uri
-	 *            the URI used to access the remote repository. This must be the
-	 *            URI passed to {@link #open(Repository, URIish)}.
-	 */
-	protected HttpTransport(Repository local, URIish uri) {
-		super(local, uri);
+	@Override
+	public void write(byte[] b) throws IOException {
+		dest.write(b);
+		log.write(b);
 	}
 
-	/**
-	 * Create a minimal HTTP transport instance not tied to a single repository.
-	 *
-	 * @param uri
-	 */
-	protected HttpTransport(URIish uri) {
-		super(uri);
+	@Override
+	public void write(byte[] b, int off, int len) throws IOException {
+		dest.write(b, off, len);
+		log.write(b, off, len);
 	}
 }
