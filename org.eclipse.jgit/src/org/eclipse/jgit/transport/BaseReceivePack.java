@@ -59,10 +59,13 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.PackProtocolException;
@@ -104,6 +107,9 @@ import org.eclipse.jgit.util.io.TimeoutOutputStream;
  * Subclasses compose these operations into full service implementations.
  */
 public abstract class BaseReceivePack {
+	private static Logger log = Logger.getLogger(BaseReceivePack.class
+			.getName());
+
 	/** Data in the first line of a request, the line itself plus capabilities. */
 	public static class FirstLine {
 		private final String line;
@@ -1053,6 +1059,8 @@ public abstract class BaseReceivePack {
 	}
 
 	private void checkConnectivity() throws IOException {
+		log.fine("entering checkConnectivity");
+		try {
 		ObjectIdSubclassMap<ObjectId> baseObjects = null;
 		ObjectIdSubclassMap<ObjectId> providedObjects = null;
 		ProgressMonitor checking = NullProgressMonitor.INSTANCE;
@@ -1068,6 +1076,11 @@ public abstract class BaseReceivePack {
 		}
 		parser = null;
 
+		log.log(Level.FINE,
+					"checkReferencedIsReachable: {0}, baseObjects: {1}, providedObjects: {2}",
+					new Object[] { checkReferencedIsReachable,
+							toStr(baseObjects), toStr(providedObjects) });
+
 		final ObjectWalk ow = new ObjectWalk(db);
 		ow.setRetainBody(false);
 		if (baseObjects != null) {
@@ -1077,6 +1090,7 @@ public abstract class BaseReceivePack {
 		}
 
 		for (final ReceiveCommand cmd : commands) {
+			log.log(Level.FINE, "command: {0}", cmd);
 			if (cmd.getResult() != Result.NOT_ATTEMPTED)
 				continue;
 			if (cmd.getType() == ReceiveCommand.Type.DELETE)
@@ -1084,15 +1098,26 @@ public abstract class BaseReceivePack {
 			ow.markStart(ow.parseAny(cmd.getNewId()));
 		}
 		for (final ObjectId have : advertisedHaves) {
+			log.log(Level.FINE, "have: {0}", have);
 			RevObject o = ow.parseAny(have);
 			ow.markUninteresting(o);
 
 			if (baseObjects != null && !baseObjects.isEmpty()) {
 				o = ow.peel(o);
 				if (o instanceof RevCommit)
+				{
 					o = ((RevCommit) o).getTree();
+					log.log(Level.FINE,
+								"peeled o pointed to RevCommit. Use the tree instead: ",
+								o);
+				}
 				if (o instanceof RevTree)
+				{
 					ow.markUninteresting(o);
+					log.log(Level.FINE,
+							"peeled o pointed to RevTree. Mark it as unteresting");
+				}
+
 			}
 		}
 
@@ -1103,34 +1128,72 @@ public abstract class BaseReceivePack {
 			if (providedObjects != null //
 					&& !c.has(RevFlag.UNINTERESTING) //
 					&& !providedObjects.contains(c))
+			{
+				log.log(Level.FINE,
+							"Walked over RevCommit: {0}. That object didn't have the UNINTERESTING bit set and was not provided. Throw exception",
+							c);
 				throw new MissingObjectException(c, Constants.TYPE_COMMIT);
+			}
 		}
 
 		RevObject o;
 		while ((o = ow.nextObject()) != null) {
+			log.log(Level.FINE, "walked over object: {0}", o);
 			checking.update(1);
 			if (o.has(RevFlag.UNINTERESTING))
+			{
+				log.fine("It had flag uninteresting -> continue");
 				continue;
+			}
 
 			if (providedObjects != null) {
 				if (providedObjects.contains(o))
+				{
+					log.fine("It was provided -> continue");
 					continue;
+				}
 				else
+				{
+					log.fine("It was not provided -> throw exception");
 					throw new MissingObjectException(o, o.getType());
+				}
 			}
 
 			if (o instanceof RevBlob && !db.hasObject(o))
+			{
+				log.fine("It was RevBlob and it was not in DB -> throw exception");
 				throw new MissingObjectException(o, Constants.TYPE_BLOB);
+			}
 		}
 		checking.endTask();
 
 		if (baseObjects != null) {
 			for (ObjectId id : baseObjects) {
 				o = ow.parseAny(id);
+				log.log(Level.FINE, "inspecting baseObject: {0}", o);
 				if (!o.has(RevFlag.UNINTERESTING))
+				{
+					log.fine("baseobject was not provided -> throw exception");
 					throw new MissingObjectException(o, o.getType());
+				}
 			}
 		}
+		} finally {
+			log.fine("exiting checkConnectivity");
+		}
+	}
+
+	private String toStr(ObjectIdSubclassMap<ObjectId> baseObjects) {
+		boolean first = true;
+		StringBuilder b = new StringBuilder();
+		Iterator<ObjectId> oit = baseObjects.iterator();
+		while (oit.hasNext()) {
+			if (!first)
+				b.append(", ");
+			b.append(oit.next());
+			first = false;
+		}
+		return b.toString();
 	}
 
 	/** Validate the command list. */
