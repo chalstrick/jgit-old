@@ -51,6 +51,8 @@ import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
@@ -79,6 +81,9 @@ import org.eclipse.jgit.util.RawParseUtils;
  * commits that are returned first.
  */
 public class ObjectWalk extends RevWalk {
+	private static final Logger log = Logger.getLogger(ObjectWalk.class
+			.getName());
+
 	private static final int ID_SZ = 20;
 	private static final int TYPE_SHIFT = 12;
 	private static final int TYPE_TREE = 0040000 >>> TYPE_SHIFT;
@@ -133,6 +138,7 @@ public class ObjectWalk extends RevWalk {
 	 */
 	public ObjectWalk(ObjectReader or) {
 		super(or);
+		log.log(Level.FINE, "new objectwalk created for objectreader {0}", or);
 		rootObjects = new ArrayList<RevObject>();
 		pendingObjects = new BlockObjQueue();
 		pathBuf = new byte[256];
@@ -173,14 +179,23 @@ public class ObjectWalk extends RevWalk {
 	 */
 	public void markStart(RevObject o) throws MissingObjectException,
 			IncorrectObjectTypeException, IOException {
+		log.log(Level.FINE, "markStart(Object {0}). boundary={1}",
+				new Object[] { o.getName(), boundary });
 		while (o instanceof RevTag) {
+			parseHeaders(o);
+			log.log(Level.FINE, "markStart for tag named: {0}",
+					((RevTag) o).getTagName());
 			addObject(o);
 			o = ((RevTag) o).getObject();
 			parseHeaders(o);
 		}
 
 		if (o instanceof RevCommit)
+		{
+			log.log(Level.FINE, "markStart for commit {0}",
+					((RevCommit) o).getName());
 			super.markStart((RevCommit) o);
+		}
 		else
 			addObject(o);
 	}
@@ -223,7 +238,12 @@ public class ObjectWalk extends RevWalk {
 	 */
 	public void markUninteresting(RevObject o) throws MissingObjectException,
 			IncorrectObjectTypeException, IOException {
+		log.log(Level.FINE, "markUninteresting(Object {0}). boundary={1}",
+				new Object[] { o.getName(), boundary });
 		while (o instanceof RevTag) {
+			parseHeaders(o);
+			log.log(Level.FINE, "markUninteresting for tag named: {0}",
+					((RevTag) o).getTagName());
 			o.flags |= UNINTERESTING;
 			if (boundary)
 				addObject(o);
@@ -232,9 +252,17 @@ public class ObjectWalk extends RevWalk {
 		}
 
 		if (o instanceof RevCommit)
+		{
 			markUninteresting((RevCommit) o);
+			log.log(Level.FINE, "markUninteresting for commit {0}",
+					((RevCommit) o).getName());
+		}
 		else if (o instanceof RevTree)
+		{
 			markTreeUninteresting((RevTree) o);
+			log.log(Level.FINE, "markUninteresting for tree {0}",
+					((RevTree) o).getName());
+		}
 		else
 			o.flags |= UNINTERESTING;
 
@@ -278,13 +306,17 @@ public class ObjectWalk extends RevWalk {
 			if ((r.flags & UNINTERESTING) != 0) {
 				markTreeUninteresting(r.getTree());
 				if (boundary)
+				{
+					log.log(Level.FINE, "returns: {0}", r);
 					return r;
+				}
 				continue;
 			}
 			if (firstCommit == null)
 				firstCommit = r;
 			lastCommit = r;
 			pendingObjects.add(r.getTree());
+			log.log(Level.FINE, "returns: {0}", r);
 			return r;
 		}
 	}
@@ -329,15 +361,22 @@ public class ObjectWalk extends RevWalk {
 						obj = new RevBlob(idBuffer);
 						obj.flags = SEEN;
 						objects.add(obj);
+						log.log(Level.FINE, "returns: {0}", obj);
 						return obj;
 					}
 					if (!(obj instanceof RevBlob))
 						throw new IncorrectObjectTypeException(obj, OBJ_BLOB);
 					obj.flags = flags = obj.flags | SEEN;
 					if ((flags & UNINTERESTING) == 0)
+					{
+						log.log(Level.FINE, "returns: {0}", obj);
 						return obj;
+					}
 					if (boundary)
+					{
+						log.log(Level.FINE, "returns: {0}", obj);
 						return obj;
+					}
 					continue;
 
 				case TYPE_TREE:
@@ -345,15 +384,25 @@ public class ObjectWalk extends RevWalk {
 						obj = new RevTree(idBuffer);
 						obj.flags = SEEN;
 						objects.add(obj);
-						return enterTree(obj);
+						RevObject ro = enterTree(obj);
+						log.log(Level.FINE, "returns: {0}", ro);
+						return ro;
 					}
 					if (!(obj instanceof RevTree))
 						throw new IncorrectObjectTypeException(obj, OBJ_TREE);
 					obj.flags = flags = obj.flags | SEEN;
 					if ((flags & UNINTERESTING) == 0)
-						return enterTree(obj);
+					{
+						RevObject ro = enterTree(obj);
+						log.log(Level.FINE, "returns: {0}", ro);
+						return ro;
+					}
 					if (boundary)
-						return enterTree(obj);
+					{
+						RevObject ro = enterTree(obj);
+						log.log(Level.FINE, "returns: {0}", ro);
+						return ro;
+					}
 					continue;
 
 				case TYPE_GITLINK:
@@ -391,6 +440,7 @@ public class ObjectWalk extends RevWalk {
 					tv.parent = null;
 					currVisit = tv;
 				}
+				log.log(Level.FINE, "returns: {0}", o);
 				return o;
 			}
 		}
