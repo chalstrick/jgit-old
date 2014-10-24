@@ -61,6 +61,8 @@ import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.diff.RawText;
@@ -100,6 +102,9 @@ import org.eclipse.jgit.util.io.EolCanonicalizingInputStream;
  * @see FileTreeIterator
  */
 public abstract class WorkingTreeIterator extends AbstractTreeIterator {
+	private static Logger log = Logger.getLogger(WorkingTreeIterator.class
+			.getName());
+
 	/** An empty entry array, suitable for {@link #init(Entry[])}. */
 	protected static final Entry[] EOF = {};
 
@@ -834,9 +839,17 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 */
 	public boolean isModified(DirCacheEntry entry, boolean forceContentCheck,
 			ObjectReader reader) throws IOException {
+
+		log.log(Level.FINE, "inspecting: {0}. forceContentCheck: {1}",
+				new Object[] { entry,
+				forceContentCheck });
+
 		if (entry == null)
 			return !FileMode.MISSING.equals(getEntryFileMode());
 		MetadataDiff diff = compareMetadata(entry);
+
+		log.log(Level.FINE, "compareMetaData returned: {0}", diff);
+
 		switch (diff) {
 		case DIFFER_BY_TIMESTAMP:
 			if (forceContentCheck)
