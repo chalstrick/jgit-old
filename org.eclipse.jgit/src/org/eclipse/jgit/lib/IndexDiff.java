@@ -54,6 +54,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
@@ -87,6 +89,7 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
  * </ul>
  */
 public class IndexDiff {
+	private static Logger log = Logger.getLogger(IndexDiff.class.getName());
 
 	/**
 	 * Represents the state of the index for a certain path regarding the stages
@@ -386,6 +389,7 @@ public class IndexDiff {
 		indexDiffFilter = new IndexDiffFilter(INDEX, WORKDIR);
 		filters.add(indexDiffFilter);
 		treeWalk.setFilter(AndTreeFilter.create(filters));
+		log.log(Level.FINE, "just before loop");
 		while (treeWalk.next()) {
 			AbstractTreeIterator treeIterator = treeWalk.getTree(TREE,
 					AbstractTreeIterator.class);
@@ -394,6 +398,10 @@ public class IndexDiff {
 			WorkingTreeIterator workingTreeIterator = treeWalk.getTree(WORKDIR,
 					WorkingTreeIterator.class);
 
+			log.log(Level.FINE,
+					"inspecting: {0}. tree/dircache/workingTree={1},{2},{3}",
+					new Object[] { treeWalk.getPathString(), treeIterator,
+							dirCacheIterator, workingTreeIterator });
 			if (dirCacheIterator != null) {
 				final DirCacheEntry dirCacheEntry = dirCacheIterator
 						.getDirCacheEntry();
@@ -402,6 +410,9 @@ public class IndexDiff {
 					if (stage > 0) {
 						String path = treeWalk.getPathString();
 						addConflict(path, stage);
+						log.log(Level.FINE,
+								"dirCache contained stage {0} -> conflict ",
+								stage);
 						continue;
 					}
 				}
@@ -413,10 +424,18 @@ public class IndexDiff {
 							|| treeIterator.getEntryRawMode()
 							!= dirCacheIterator.getEntryRawMode()) {
 						// in repo, in index, content diff => changed
+						log.log(Level.FINE,
+								"content or mode differ between index and tree -> changed. tree(id/mode)=({0}/{1}), dircache(id/mode)=({2}/{3})",
+								new Object[] { treeIterator.getEntryObjectId(),
+										treeIterator.getEntryFileMode(),
+										dirCacheIterator.getEntryObjectId(),
+										dirCacheIterator.getEntryFileMode() });
 						changed.add(treeWalk.getPathString());
 					}
 				} else {
 					// in repo, not in index => removed
+					log.log(Level.FINE,
+							"in tree but not in index -> removed and potentially untracked.");
 					removed.add(treeWalk.getPathString());
 					if (workingTreeIterator != null)
 						untracked.add(treeWalk.getPathString());
@@ -424,12 +443,15 @@ public class IndexDiff {
 			} else {
 				if (dirCacheIterator != null) {
 					// not in repo, in index => added
+					log.log(Level.FINE, "not in tree but in index -> added.");
 					added.add(treeWalk.getPathString());
 				} else {
 					// not in repo, not in index => untracked
 					if (workingTreeIterator != null
 							&& !workingTreeIterator.isEntryIgnored()) {
 						untracked.add(treeWalk.getPathString());
+						log.log(Level.FINE,
+								"not in tree, not in index -> untracked.");
 					}
 				}
 			}
@@ -437,11 +459,14 @@ public class IndexDiff {
 			if (dirCacheIterator != null) {
 				if (workingTreeIterator == null) {
 					// in index, not in workdir => missing
+					log.log(Level.FINE, "in index, not in workdir -> missing");
 					missing.add(treeWalk.getPathString());
 				} else {
 					if (workingTreeIterator.isModified(
 							dirCacheIterator.getDirCacheEntry(), true,
 							treeWalk.getObjectReader())) {
+						log.log(Level.FINE,
+								"// in index, in workdir, content differs => modified");
 						// in index, in workdir, content differs => modified
 						modified.add(treeWalk.getPathString());
 					}
