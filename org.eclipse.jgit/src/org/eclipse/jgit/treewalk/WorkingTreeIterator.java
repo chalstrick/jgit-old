@@ -74,6 +74,8 @@ import org.eclipse.jgit.errors.NoWorkTreeException;
 import org.eclipse.jgit.ignore.FastIgnoreRule;
 import org.eclipse.jgit.ignore.IgnoreNode;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.file.GlobalAttributesNode;
+import org.eclipse.jgit.internal.storage.file.InfoAttributesNode;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.CoreConfig;
 import org.eclipse.jgit.lib.CoreConfig.CheckStat;
@@ -1293,68 +1295,6 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		}
 	}
 
-	/**
-	 * Attributes node loaded from global system-wide file.
-	 */
-	private static class GlobalAttributesNode extends AttributesNode {
-		final Repository repository;
-
-		GlobalAttributesNode(Repository repository) {
-			this.repository = repository;
-		}
-
-		AttributesNode load() throws IOException {
-			AttributesNode r = new AttributesNode();
-
-			FS fs = repository.getFS();
-			String path = repository.getConfig().get(CoreConfig.KEY)
-					.getAttributesFile();
-			if (path != null) {
-				File attributesFile;
-				if (path.startsWith("~/")) //$NON-NLS-1$
-					attributesFile = fs.resolve(fs.userHome(),
-							path.substring(2));
-				else
-					attributesFile = fs.resolve(null, path);
-				loadRulesFromFile(r, attributesFile);
-			}
-			return r.getRules().isEmpty() ? null : r;
-		}
-	}
-
-	/** Magic type indicating there may be rules for the top level. */
-	private static class InfoAttributesNode extends AttributesNode {
-		final Repository repository;
-
-		InfoAttributesNode(Repository repository) {
-			this.repository = repository;
-		}
-
-		AttributesNode load() throws IOException {
-			AttributesNode r = new AttributesNode();
-
-			FS fs = repository.getFS();
-
-			File attributes = fs.resolve(repository.getDirectory(),
-					"info/attributes"); //$NON-NLS-1$
-			loadRulesFromFile(r, attributes);
-
-			return r.getRules().isEmpty() ? null : r;
-		}
-
-	}
-
-	private static void loadRulesFromFile(AttributesNode r, File attrs)
-			throws FileNotFoundException, IOException {
-		if (attrs.exists()) {
-			FileInputStream in = new FileInputStream(attrs);
-			try {
-				r.parse(in);
-			} finally {
-				in.close();
-			}
-		}
-	}
 
 	private static final class IteratorState {
 		/** Options used to process the working tree. */
