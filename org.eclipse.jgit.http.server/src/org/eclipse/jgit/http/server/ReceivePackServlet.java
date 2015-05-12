@@ -46,6 +46,7 @@ package org.eclipse.jgit.http.server;
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static javax.servlet.http.HttpServletResponse.SC_FORBIDDEN;
 import static javax.servlet.http.HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
+import static javax.servlet.http.HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE;
 import static javax.servlet.http.HttpServletResponse.SC_UNAUTHORIZED;
 import static javax.servlet.http.HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE;
 import static org.eclipse.jgit.http.server.ClientVersionUtil.hasChunkedEncodingRequestBug;
@@ -74,6 +75,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.eclipse.jgit.errors.TooLargePackException;
 import org.eclipse.jgit.errors.UnpackException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.ReceivePack;
@@ -187,12 +189,21 @@ class ReceivePackServlet extends HttpServlet {
 			rp.receive(getInputStream(req), out, null);
 			out.close();
 		} catch (UnpackException e) {
-			// This should be already reported to the client.
-			getServletContext().log(
-					HttpServerText.get().internalErrorDuringReceivePack,
-					e.getCause());
-			consumeRequestBody(req);
-			out.close();
+			Throwable cause = e.getCause();
+			if (cause != null && cause instanceof TooLargePackException) {
+				consumeRequestBody(req);
+				if (!rsp.isCommitted()) {
+					rsp.reset();
+					sendError(req, rsp, SC_REQUEST_ENTITY_TOO_LARGE);
+				}
+			} else {
+				// This should be already reported to the client.
+				getServletContext().log(
+						HttpServerText.get().internalErrorDuringReceivePack,
+						e.getCause());
+				consumeRequestBody(req);
+				out.close();
+			}
 
 		} catch (Throwable e) {
 			getServletContext().log(HttpServerText.get().internalErrorDuringReceivePack, e);
