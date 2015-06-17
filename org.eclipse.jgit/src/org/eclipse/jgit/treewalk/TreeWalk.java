@@ -54,6 +54,7 @@ import java.util.Set;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.attributes.Attribute;
 import org.eclipse.jgit.attributes.AttributesNode;
+import org.eclipse.jgit.attributes.AttributesProvider;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
@@ -91,8 +92,28 @@ import org.eclipse.jgit.util.RawParseUtils;
  * Multiple simultaneous TreeWalk instances per {@link Repository} are
  * permitted, even from concurrent threads.
  */
-public class TreeWalk implements AutoCloseable {
+public class TreeWalk implements AutoCloseable, AttributesProvider {
 	private static final AbstractTreeIterator[] NO_TREES = {};
+
+	/**
+	 * @since 4.2
+	 */
+	public static enum OperationType {
+		/**
+		 * Represents a checkout operation (for example a checkout or reset
+		 * operation).
+		 */
+		CHECKOUT_OP, /**
+						 * Represents a checkin operation (for example an add
+						 * operation)
+						 */
+		CHECKIN_OP
+	}
+
+	/**
+	 *            Type of operation you want to retrieve the git attributes for.
+	 */
+	private OperationType operationType;
 
 	/**
 	 * Open a tree walk and filter to exactly one path.
@@ -227,10 +248,8 @@ public class TreeWalk implements AutoCloseable {
 	AbstractTreeIterator currentHead;
 
 	/** Cached attribute for the current entry */
-	private Set<Attribute> checkinAttrs = null;
+	private Set<Attribute> attrs = null;
 
-	/** Cached attribute for the current entry */
-	private Set<Attribute> checkoutAttrs = null;
 	/**
 	 * Create a new tree walker for a given repository.
 	 *
@@ -395,7 +414,7 @@ public class TreeWalk implements AutoCloseable {
 
 	/** Reset this walker so new tree iterators can be added to it. */
 	public void reset() {
-		resetCachedAttributes();
+		attrs = null;
 		trees = NO_TREES;
 		advance = false;
 		depth = 0;
@@ -439,7 +458,7 @@ public class TreeWalk implements AutoCloseable {
 
 		advance = false;
 		depth = 0;
-		resetCachedAttributes();
+		attrs = null;
 	}
 
 	/**
@@ -489,7 +508,7 @@ public class TreeWalk implements AutoCloseable {
 		trees = r;
 		advance = false;
 		depth = 0;
-		resetCachedAttributes();
+		attrs = null;
 	}
 
 	/**
@@ -586,7 +605,7 @@ public class TreeWalk implements AutoCloseable {
 	public boolean next() throws MissingObjectException,
 			IncorrectObjectTypeException, CorruptObjectException, IOException {
 		try {
-			resetCachedAttributes();
+			attrs = null;
 			if (advance) {
 				advance = false;
 				postChildren = false;
@@ -956,7 +975,7 @@ public class TreeWalk implements AutoCloseable {
 	 */
 	public void enterSubtree() throws MissingObjectException,
 			IncorrectObjectTypeException, CorruptObjectException, IOException {
-		resetCachedAttributes();
+		attrs = null;
 		final AbstractTreeIterator ch = currentHead;
 		final AbstractTreeIterator[] tmp = new AbstractTreeIterator[trees.length];
 		for (int i = 0; i < trees.length; i++) {
@@ -1052,23 +1071,6 @@ public class TreeWalk implements AutoCloseable {
 	}
 
 	/**
-	 * Type of operation you want to retrieve the git attributes for.
-	 *
-	 * @since 4.2
-	 */
-	public static enum OperationType {
-		/**
-		 * Represents a checkout operation (for example a checkout or reset
-		 * operation).
-		 */
-		CHECKOUT_OP,
-		/**
-		 * Represents a checkin operation (for example an add operation)
-		 */
-		CHECKIN_OP
-	}
-
-	/**
 	 * Retrieves the git attributes for the current entry.
 	 *
 	 * <h4>Git attribute computation</h4>
@@ -1104,15 +1106,12 @@ public class TreeWalk implements AutoCloseable {
 	 * provided it will fallback on the {@link DirCacheIterator}.
 	 * </p>
 	 *
-	 * @param operationType
-	 *            Type of operation you want to retrieve the git attributes for.
 	 * @return a {@link Set} of {@link Attribute}s that match the current entry.
 	 * @since 4.2
 	 */
-	public Set<Attribute> getAttributes(OperationType operationType) {
-		Set<Attribute> cachedAttributes = getCachedAttributes(operationType);
-		if (cachedAttributes != null)
-			return cachedAttributes;
+	public Set<Attribute> getAttributes() {
+		if (attrs != null)
+			return attrs;
 
 		if (attributesNodeProvider == null) {
 			// The work tree should have a AttributesNodeProvider to be able to
@@ -1154,6 +1153,7 @@ public class TreeWalk implements AutoCloseable {
 				infoNodeAttr.getAttributes(path, isDir, attributes);
 			}
 
+
 			// Gets the attributes located on the current entry path
 			getPerDirectoryEntryAttributes(path, isDir, operationType,
 					workingTreeIterator, dirCacheIterator,
@@ -1175,40 +1175,9 @@ public class TreeWalk implements AutoCloseable {
 			result = new HashSet<Attribute>(attributes.values());
 		}
 
-		setCachedAttributes(operationType, result);
+		attrs = result;
 
 		return result;
-	}
-
-	private Set<Attribute> getCachedAttributes(OperationType type) {
-		switch (type) {
-		case CHECKIN_OP:
-			return checkinAttrs;
-		case CHECKOUT_OP:
-			return checkoutAttrs;
-		default:
-			throw new IllegalStateException("No cache for operation type " //$NON-NLS-1$
-					+ type);
-		}
-	}
-
-	private void setCachedAttributes(OperationType type, Set<Attribute> attrs) {
-		switch (type) {
-		case CHECKIN_OP:
-			checkinAttrs = attrs;
-			break;
-		case CHECKOUT_OP:
-			checkoutAttrs = attrs;
-			break;
-		default:
-			throw new IllegalStateException("No cache for operation type " //$NON-NLS-1$
-					+ type);
-		}
-	}
-
-	private void resetCachedAttributes() {
-		checkoutAttrs = null;
-		checkinAttrs = null;
 	}
 
 	/**

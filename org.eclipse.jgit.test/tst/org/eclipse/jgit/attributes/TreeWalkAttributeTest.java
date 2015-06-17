@@ -42,8 +42,6 @@
  */
 package org.eclipse.jgit.attributes;
 
-import static org.eclipse.jgit.treewalk.TreeWalk.OperationType.CHECKIN_OP;
-import static org.eclipse.jgit.treewalk.TreeWalk.OperationType.CHECKOUT_OP;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -75,7 +73,7 @@ import org.junit.Test;
 /**
  * Tests the attributes are correctly computed in a {@link TreeWalk}.
  *
- * @see TreeWalk#getAttributes(org.eclipse.jgit.treewalk.TreeWalk.OperationType)
+ * @see TreeWalk#getAttributes()
  */
 public class TreeWalkAttributeTest extends RepositoryTestCase {
 
@@ -643,6 +641,25 @@ public class TreeWalkAttributeTest extends RepositoryTestCase {
 		endWalk();
 	}
 
+	@Test
+	public void testRulesInherited() throws Exception {
+		writeAttributesFile(".gitattributes", "**/*.txt eol=lf");
+		writeTrashFile("src/config/readme.txt", "");
+		writeTrashFile("src/config/windows.file", "");
+
+		beginWalk();
+
+		assertEntry(F, ".gitattributes");
+		assertEntry(D, "src");
+		assertEntry(D, "src/config");
+
+		assertEntry(F, "src/config/readme.txt", asSet(EOL_LF));
+		assertEntry(F, "src/config/windows.file",
+				Collections.<Attribute> emptySet());
+
+		endWalk();
+	}
+
 	private void beginWalk() throws NoWorkTreeException, IOException {
 		walk = new TreeWalk(db);
 		walk.addTree(new FileTreeIterator(db));
@@ -697,8 +714,8 @@ public class TreeWalkAttributeTest extends RepositoryTestCase {
 		assertEquals(pathName, walk.getPathString());
 		assertEquals(type, walk.getFileMode(0));
 
-		assertEquals(checkinAttributes, walk.getAttributes(CHECKIN_OP));
-		assertEquals(checkoutAttributes, walk.getAttributes(CHECKOUT_OP));
+		assertEquals(checkinAttributes, walk.getAttributes());
+		assertEquals(checkoutAttributes, walk.getAttributes());
 
 		if (D.equals(type))
 			walk.enterSubtree();
