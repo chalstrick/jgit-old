@@ -1699,4 +1699,29 @@ public abstract class Repository implements AutoCloseable {
 		return getConfig()
 				.getSubsections(ConfigConstants.CONFIG_REMOTE_SECTION);
 	}
+
+	/**
+	 * Get the filter command how it is defined in gitconfig. The returned
+	 * string may contain "%f" which needs to be replaced by the current path
+	 * before executing the filter command. These filter definitions are cached
+	 * for better performance.
+	 *
+	 * @param config
+	 *
+	 * @param filterDriverName
+	 *            The name of the filter driver as it is referenced in the
+	 *            gitattributes file. E.g. "lfs". For each filter driver there
+	 *            may be many commands defined in the .gitconfig
+	 * @param filterCommandType
+	 *            The type of the filter command for a specific filter driver.
+	 *            May be "clean" or "smudge".
+	 * @return the definition of the command to be executed for this filter
+	 *         driver and filter command
+	 * @since 4.1
+	 */
+	public String getFilterCommandDefinition(Config config,
+			String filterDriverName, String filterCommandType) {
+		return config.getString(Constants.ATTR_FILTER, filterDriverName,
+				filterCommandType);
+	}
 }
