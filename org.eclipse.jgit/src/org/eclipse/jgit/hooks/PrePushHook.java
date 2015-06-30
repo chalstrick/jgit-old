@@ -42,47 +42,113 @@
  */
 package org.eclipse.jgit.hooks;
 
+import java.io.IOException;
 import java.io.PrintStream;
+import java.util.Collection;
 
+import org.eclipse.jgit.api.errors.AbortedByHookException;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
 
 /**
- * Factory class for instantiating supported hooks.
+ * @TODO
  *
- * @since 4.0
+ * @since 4.1
  */
-public class Hooks {
+public class PrePushHook extends GitHook<String> {
+
+	/**
+	 * Constant indicating the name of the pre-push hook.
+	 */
+	public static final String NAME = "pre-push"; //$NON-NLS-1$
+
+	private String remoteName;
+
+	private String remoteLocation;
+
+	private String refs;
 
 	/**
 	 * @param repo
+	 *            The repository
 	 * @param outputStream
-	 *            The output stream, or {@code null} to use {@code System.out}
-	 * @return The pre-commit hook for the given repository.
+	 *            The output stream the hook must use. {@code null} is allowed,
+	 *            in which case the hook will use {@code System.out}.
 	 */
-	public static PreCommitHook preCommit(Repository repo,
-			PrintStream outputStream) {
-		return new PreCommitHook(repo, outputStream);
+	protected PrePushHook(Repository repo, PrintStream outputStream) {
+		super(repo, outputStream);
+	}
+
+	@Override
+	protected String getStdinArgs() {
+		return refs;
+	}
+
+	@Override
+	public String call() throws IOException, AbortedByHookException {
+		if (canRun()) {
+			doRun();
+		}
+		return ""; //$NON-NLS-1$
 	}
 
 	/**
-	 * @param repo
-	 * @param outputStream
-	 *            The output stream, or {@code null} to use {@code System.out}
-	 * @return The commit-msg hook for the given repository.
+	 * @return {@code true}
 	 */
-	public static CommitMsgHook commitMsg(Repository repo,
-			PrintStream outputStream) {
-		return new CommitMsgHook(repo, outputStream);
+	private boolean canRun() {
+		return true;
+	}
+
+	@Override
+	public String getHookName() {
+		return NAME;
 	}
 
 	/**
-	 * @param repo
-	 * @param outputStream
-	 *            The output stream, or {@code null} to use {@code System.out}
-	 * @return The pre-push hook for the given repository.
-	 * @since 4.1
+	 * This hook receives two parameters, which is the name and the location of
+	 * the remote repository.
 	 */
-	public static PrePushHook prePush(Repository repo, PrintStream outputStream) {
-		return new PrePushHook(repo, outputStream);
+	@Override
+	protected String[] getParameters() {
+		return new String[] { remoteName, remoteLocation };
+	}
+
+	/**
+	 * @param name
+	 */
+	public void setRemoteName(String name) {
+		remoteName = name;
+	}
+
+	/**
+	 * @param location
+	 */
+	public void setRemoteLocation(String location) {
+		remoteLocation = location;
+	}
+
+	/**
+	 * @param toRefs
+	 */
+	public void setRefs(Collection<RemoteRefUpdate> toRefs) {
+		StringBuilder b = new StringBuilder();
+		boolean first = true;
+		for (RemoteRefUpdate u : toRefs) {
+			if (!first)
+				b.append("\n"); //$NON-NLS-1$
+			else
+				first = false;
+			b.append(u.getSrcRef());
+			b.append(" ");
+			b.append(u.getNewObjectId().getName());
+			b.append(" ");
+			b.append(u.getRemoteName());
+			b.append(" ");
+			ObjectId ooid = u.getExpectedOldObjectId();
+			b.append((ooid == null) ? ObjectId.zeroId().getName() : ooid
+					.getName());
+		}
+		refs = b.toString();
 	}
 }
