@@ -557,13 +557,13 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 
 	@Test
 	public void testSmudgeFilter() throws IOException, GitAPIException {
-		File smduge_filter = writeTempFile("sed s/o/OOO/g -");
-		File clean_filter = writeTempFile("sed s/OOO/o/g -");
+		File clean_filter = writeTempFile("sed s/V1/@version/g -");
+		File smudge_filter = writeTempFile("sed s/@version/V1/g -");
 
 		Git git = new Git(db);
 		StoredConfig config = git.getRepository().getConfig();
 		config.setString("filter", "tstFilter", "smudge",
-				"sh " + smduge_filter.getPath());
+				"sh " + smudge_filter.getPath());
 		config.setString("filter", "tstFilter", "clean",
 				"sh " + clean_filter.getPath());
 		config.save();
@@ -571,26 +571,26 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 		git.add().addFilepattern(".gitattributes").call();
 		git.commit().setMessage("add attributes").call();
 
-		writeTrashFile("filterTest.txt", "HellOOO wOOOrld");
+		writeTrashFile("filterTest.txt", "hello world, V1");
 		git.add().addFilepattern("filterTest.txt").call();
 		git.commit().setMessage("add filterText.txt").call();
 
 		git.checkout().setCreateBranch(true).setName("test2").call();
-		writeTrashFile("filterTest.txt", "AnOOOther hellOOO wOOOrld");
+		writeTrashFile("filterTest.txt", "bon giorno world, V1");
 		git.add().addFilepattern("filterTest.txt").call();
 		git.commit().setMessage("modified filterText.txt").call();
 
 		assertTrue(git.status().call().isClean());
 		assertEquals(
-				"[.gitattributes, mode:100644, content:*.txt filter=tstFilter][Test.txt, mode:100644, content:Some other change][filterTest.txt, mode:100644, content:Another hello world]",
+				"[.gitattributes, mode:100644, content:*.txt filter=tstFilter][Test.txt, mode:100644, content:Some other change][filterTest.txt, mode:100644, content:bon giorno world, @version]",
 				indexState(CONTENT));
 
 		git.checkout().setName("refs/heads/test").call();
 		assertTrue(git.status().call().isClean());
 		assertEquals(
-				"[.gitattributes, mode:100644, content:*.txt filter=tstFilter][Test.txt, mode:100644, content:Some other change][filterTest.txt, mode:100644, content:Hello world]",
+				"[.gitattributes, mode:100644, content:*.txt filter=tstFilter][Test.txt, mode:100644, content:Some other change][filterTest.txt, mode:100644, content:hello world, @version]",
 				indexState(CONTENT));
-		assertEquals("HellOOO wOOOrld", read("filterTest.txt"));
+		assertEquals("hello world, V1", read("filterTest.txt"));
 	}
 
 	//
