@@ -116,8 +116,8 @@ public class AddCommandTest extends RepositoryTestCase {
 	@Test
 	public void testCleanFilter() throws IOException,
 			GitAPIException {
-		writeTrashFile("a.txt", "foo");
-		writeTrashFile("a.tmp", "foo");
+		writeTrashFile("src/a.txt", "foo");
+		writeTrashFile("src/a.tmp", "foo");
 		File script = writeTempFile("sed s/o/e/ -");
 
 		Git git = new Git(db);
@@ -127,10 +127,11 @@ public class AddCommandTest extends RepositoryTestCase {
 		config.save();
 		writeTrashFile(".gitattributes", "*.txt filter=tstFilter");
 
-		git.add().addFilepattern("a.txt").addFilepattern("a.tmp").call();
+		git.add().addFilepattern("src/a.txt").addFilepattern("src/a.tmp")
+				.call();
 
 		assertEquals(
-				"[a.tmp, mode:100644, content:foo][a.txt, mode:100644, content:feo]",
+				"[src/a.tmp, mode:100644, content:foo][src/a.txt, mode:100644, content:feo]",
 				indexState(CONTENT));
 	}
 
