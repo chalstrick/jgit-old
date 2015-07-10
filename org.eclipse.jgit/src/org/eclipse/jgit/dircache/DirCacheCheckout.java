@@ -120,6 +120,8 @@ public class DirCacheCheckout {
 
 	private HashMap<String, AttributesNode> attributesByPath = new HashMap<String, AttributesNode>();
 
+	private AttributesNode entryAttributesNode;
+
 	/**
 	 * @return a list of updated paths and objectIds
 	 */
@@ -264,8 +266,10 @@ public class DirCacheCheckout {
 					walk.getTree(1, CanonicalTreeParser.class),
 					walk.getTree(2, DirCacheBuildIterator.class),
 					walk.getTree(3, WorkingTreeIterator.class));
-			if (walk.isSubtree())
+			if (walk.isSubtree()) {
+				entryAttributesNode = null;
 				walk.enterSubtree();
+			}
 		}
 	}
 
@@ -304,8 +308,10 @@ public class DirCacheCheckout {
 			processEntry(walk.getTree(0, CanonicalTreeParser.class),
 					walk.getTree(1, DirCacheBuildIterator.class),
 					walk.getTree(2, WorkingTreeIterator.class));
-			if (walk.isSubtree())
+			if (walk.isSubtree()) {
+				entryAttributesNode = null;
 				walk.enterSubtree();
+			}
 		}
 		conflicts.removeAll(removed);
 	}
@@ -521,6 +527,8 @@ public class DirCacheCheckout {
 
 	void processEntry(CanonicalTreeParser h, CanonicalTreeParser m,
 			DirCacheBuildIterator i, WorkingTreeIterator f) throws IOException {
+		if (f != null && entryAttributesNode == null)
+			entryAttributesNode = f.getEntryAttributesNode();
 		DirCacheEntry dce = i != null ? i.getDirCacheEntry() : null;
 
 		String name = walk.getPathString();
@@ -1012,8 +1020,8 @@ public class DirCacheCheckout {
 			WorkingTreeIterator wti) throws IOException {
 		if (!FileMode.TREE.equals(mode)) {
 			updated.put(path, mId);
-			if (wti != null)
-				attributesByPath.put(path, wti.getEntryAttributesNode());
+			if (entryAttributesNode != null)
+				attributesByPath.put(path, entryAttributesNode);
 			DirCacheEntry entry = new DirCacheEntry(path, DirCacheEntry.STAGE_0);
 			entry.setObjectId(mId);
 			entry.setFileMode(mode);
