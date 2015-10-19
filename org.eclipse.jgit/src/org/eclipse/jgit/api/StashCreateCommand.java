@@ -110,6 +110,8 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 
 	private boolean includeUntracked;
 
+	private boolean keepIndex = false;
+
 	/**
 	 * Create a command to stash changes in the working directory and index
 	 *
@@ -170,6 +172,21 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	 */
 	public StashCreateCommand setRef(String ref) {
 		this.ref = ref;
+		return this;
+	}
+
+	/**
+	 * Set the reference to update with the stashed commit id If null, no
+	 * reference is updated
+	 * <p>
+	 * This value defaults to {@link Constants#R_STASH}
+	 *
+	 * @param keepIndex
+	 * @return {@code this}
+	 * @since 4.1
+	 */
+	public StashCreateCommand setKeepIndex(boolean keepIndex) {
+		this.keepIndex = keepIndex;
 		return this;
 	}
 
@@ -263,6 +280,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 				List<String> wtDeletes = new ArrayList<String>();
 				List<DirCacheEntry> untracked = new ArrayList<DirCacheEntry>();
 				boolean hasChanges = false;
+				ObjectId indexCommit = null;
 				do {
 					AbstractTreeIterator headIter = treeWalk.getTree(0,
 							AbstractTreeIterator.class);
@@ -326,7 +344,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 				builder.setMessage(MessageFormat.format(indexMessage, branch,
 						headCommit.abbreviate(7).name(),
 						headCommit.getShortMessage()));
-				ObjectId indexCommit = inserter.insert(builder);
+				indexCommit = inserter.insert(builder);
 
 				// Commit untracked changes
 				ObjectId untrackedCommit = null;
@@ -383,8 +401,13 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 				cache.unlock();
 			}
 
-			// Hard reset to HEAD
-			new ResetCommand(repo).setMode(ResetType.HARD).call();
+			// reset to HEAD
+			if (!keepIndex) {
+				new ResetCommand(repo).setMode(ResetType.HARD).call();
+			} else {
+				new ResetCommand(repo).setMode(ResetType.HARD).setRef(indexCommit.))call();
+				new ResetCommand(repo).setMode(ResetType.HARD).call();
+			}
 
 			// Return stashed commit
 			return parseCommit(reader, commitId);
