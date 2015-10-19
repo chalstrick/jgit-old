@@ -389,7 +389,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 	private InputStream possiblyFilteredInputStream(final Entry e,
 			final InputStream is, final long len) throws IOException {
-		if (!mightNeedCleaning()) {
+		boolean mightNeedCleaning = mightNeedCleaning();
+		if (!mightNeedCleaning) {
 			canonLen = len;
 			return is;
 		}
@@ -407,7 +408,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			return new ByteArrayInputStream(raw, 0, n);
 		}
 
-		if (isBinary(e)) {
+		// @TODO: fix autocrlf causing mightneedcleaning
+		if (!mightNeedCleaning && isBinary(e)) {
 			canonLen = len;
 			return is;
 		}

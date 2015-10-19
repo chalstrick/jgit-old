@@ -47,6 +47,7 @@ import java.io.PrintStream;
 import java.util.Collection;
 
 import org.eclipse.jgit.api.errors.AbortedByHookException;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 
@@ -132,9 +133,21 @@ public class PrePushHook extends GitHook<String> {
 	 */
 	public void setRefs(Collection<RemoteRefUpdate> toRefs) {
 		StringBuilder b = new StringBuilder();
+		boolean first = true;
 		for (RemoteRefUpdate u : toRefs) {
+			if (!first)
+				b.append("\n"); //$NON-NLS-1$
+			else
+				first = false;
 			b.append(u.getSrcRef());
-			b.append("\n"); //$NON-NLS-1$
+			b.append(" ");
+			b.append(u.getNewObjectId().getName());
+			b.append(" ");
+			b.append(u.getRemoteName());
+			b.append(" ");
+			ObjectId ooid = u.getExpectedOldObjectId();
+			b.append((ooid == null) ? ObjectId.zeroId().getName() : ooid
+					.getName());
 		}
 		refs = b.toString();
 	}
