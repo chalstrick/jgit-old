@@ -66,6 +66,7 @@ import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.TreeWalk.OperationType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -111,6 +112,8 @@ public class TreeWalkAttributeTest extends RepositoryTestCase {
 	private static Attribute CUSTOM2_SET = new Attribute("custom2", State.SET);
 
 	private TreeWalk walk;
+
+	private TreeWalk ci_walk;
 
 	private Git git;
 
@@ -664,6 +667,11 @@ public class TreeWalkAttributeTest extends RepositoryTestCase {
 		walk = new TreeWalk(db);
 		walk.addTree(new FileTreeIterator(db));
 		walk.addTree(new DirCacheIterator(db.readDirCache()));
+
+		ci_walk = new TreeWalk(db);
+		ci_walk.setOperationType(OperationType.CHECKIN_OP);
+		ci_walk.addTree(new FileTreeIterator(db));
+		ci_walk.addTree(new DirCacheIterator(db.readDirCache()));
 	}
 
 	/**
@@ -711,14 +719,17 @@ public class TreeWalkAttributeTest extends RepositoryTestCase {
 			Set<Attribute> checkinAttributes, Set<Attribute> checkoutAttributes)
 			throws IOException {
 		assertTrue("walk has entry", walk.next());
+		assertTrue("walk has entry", ci_walk.next());
 		assertEquals(pathName, walk.getPathString());
 		assertEquals(type, walk.getFileMode(0));
 
-		assertEquals(checkinAttributes, walk.getAttributes());
+		assertEquals(checkinAttributes, ci_walk.getAttributes());
 		assertEquals(checkoutAttributes, walk.getAttributes());
 
-		if (D.equals(type))
+		if (D.equals(type)) {
 			walk.enterSubtree();
+			ci_walk.enterSubtree();
+		}
 	}
 
 	private File writeAttributesFile(String name, String... rules)
@@ -762,5 +773,6 @@ public class TreeWalkAttributeTest extends RepositoryTestCase {
 
 	private void endWalk() throws IOException {
 		assertFalse("Not all files tested", walk.next());
+		assertFalse("Not all files tested", ci_walk.next());
 	}
 }

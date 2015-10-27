@@ -113,7 +113,15 @@ public class TreeWalk implements AutoCloseable, AttributesProvider {
 	/**
 	 *            Type of operation you want to retrieve the git attributes for.
 	 */
-	private OperationType operationType;
+	private OperationType operationType = OperationType.CHECKOUT_OP;
+
+	/**
+	 * @param operationType
+	 * @since 4.2
+	 */
+	public void setOperationType(OperationType operationType) {
+		this.operationType = operationType;
+	}
 
 	/**
 	 * Open a tree walk and filter to exactly one path.
